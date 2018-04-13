@@ -13,11 +13,11 @@ include Macros.inc
 
 ; NOTE data
 .data
-
 ; proto NOTE func PROTO
 draw_bar PROTO,
 y_start: DWORD,
 line_length: DWORD,
+; TODO add delay_time, is_inverse as parameters
 ; delay_time: BYTE,
 ; is_inverse: BYTE
 
@@ -40,7 +40,11 @@ ship_color BYTE yellow
 draw_delay DWORD 0
 draw_inverse DWORD 0
 draw_delay_time DWORD 25
-
+ship_height_change DWORD 0
+ship_x BYTE ?
+ship_y BYTE ?
+ship_old_x BYTE ?
+ship_old_y BYTE ?
 
 ; opt1
 n DWORD ?
@@ -98,6 +102,7 @@ str_quit_msg BYTE 10, 13, 10, 13,
 .code
 main PROC
 L_menu:
+	call restore_color
 	call Clrscr
 	call show_menu
 	call get_key
@@ -255,7 +260,7 @@ opt_2 PROC
 	mov eax, 0 ; x
 	mov ebx, 4 ; y
 	movzx ecx, frame_height
-	mov draw_delay, 50
+	mov draw_delay, 25
 	INVOKE draw_straight, 0, 4, ecx
 	; draw bottom
 	add ecx, 4
@@ -283,63 +288,107 @@ opt_2 ENDP
 ; == opt2 =====================
 
 ; == opt3 =====================
+; NOTE opt3
 opt_3 PROC
-L_opt3:
 	call Clrscr
 	mov edx, offset str_opt3_msg
 	invoke WriteString
-L_opt3_get_n:
-	call Crlf
-	call Crlf
-	mWrite " > Pleas input n: "
-	call readInt
-	cmp eax, 0
-	je L_opt3_quit
-	jl L_opt3_invalid_n
-	jmp L_opt3_valid_n
-L_opt3_invalid_n:
-	call Crlf
-	mWrite "   [X] The input must > 0. Please input again."
-	call Crlf
-	jmp L_opt3_get_n
-L_opt3_valid_n:
-	mov n, eax
-	; S(n) = S(n-1) + S(n-2)
-	finit
-	fld s_0
-	fstp n_1
-	fld s_1
-	fstp n_2
-	mov ecx, n
-	dec ecx
-L_opt3_computing:
-	; f(n) = f(n-1) + f(n-2)
-	fld n_2
-	fld n_1
-	fadd
-	fstp cur_n
-	; f(n-2) = f(n-1)
-	fld n_1
-	fstp n_2
-	; f(n-1) = f(n)
-	fld cur_n
-	fstp n_1
-	loop L_opt3_computing
 
-	call Crlf
-	call Crlf
-	fld cur_n
-	mWrite " The result = "
-	call WriteFloat
-	call Crlf
-	call waitKey
-	; jmp L_opt3
+	; draw a frame
+	; draw frame
+	movzx eax, ship_color
+	call set_background_color
+	; draw left
+	movzx ecx, frame_height
+	INVOKE draw_straight, 0, 5, ecx
+	; draw bottom
+	add ecx, 4
+	movzx ebx, frame_width
+	INVOKE draw_bar, ecx, ebx
+	; draw right
+	movzx edx, frame_height
+	INVOKE draw_straight, ebx, 5, edx ; x, y, length
+	; draw top
+	INVOKE draw_bar, 5, ebx
+
+	; show the ship in the middle
+	movzx eax, ship_color
+	shl eax, 4
+	call SetTextColor
+	mov dh, 17
+	mov bh, dl
+	mov dl, 38
+	call Gotoxy
+	mov al, ' '
+  invoke WriteChar
+	invoke WriteChar
+	invoke WriteChar
+	mov ship_x, dl
+	mov ship_y, dh
+
+L_opt3_ship_moving:
+	mov ship_height_change, 0
+	mov al, ship_x
+	mov ship_old_x, al
+	mov al, ship_y
+	mov ship_old_y, al
+	call ReadKey
+	; no key is pressed
+	jz L_opt3_no_key_pressed
+	.if al == 'e'
+	dec ship_height_change
+	mov dh, ship_y
+	dec dh
+	.if dh > 30 ; out of boundary
+	mov dh, 6
+	.endif
+	mov ship_y, dh
+	.elseif al == 'c'
+	inc ship_height_change
+	mov dh, ship_y
+	inc dh
+	.if dh < 0 ; out of boundary
+	mov dh, 29
+	.endif
+	mov ship_y, dh
+	.elseif al == ' '
+	jmp L_opt3_quit
+	.endif
+
+L_opt3_no_key_pressed:
+	.if ship_height_change != 0
+	; erase whole ship
+	mov dl, ship_x
+	mov dh, ship_old_y
+	mov eax, black
+	call set_background_color
+	call Gotoxy
+	mov al, ' '
+  invoke WriteChar
+	invoke WriteChar
+	invoke WriteChar
+	movzx eax, ship_color
+	call set_background_color
+	mov dh, ship_y
+	call Gotoxy
+	mov al, ' '
+  invoke WriteChar
+	invoke WriteChar
+	invoke WriteChar
+	.else
+	.endif
+
+	mov eax, 50
+	call Delay
+	jmp L_opt3_ship_moving
+
 L_opt3_quit:
 	ret
 opt_3 ENDP
 ; == opt3 =====================
 
 ; == opt4 =====================
+; NOTE opt4
 opt_4 PROC
 	call Clrscr
 	mov edx, offset str_opt4_msg
@@ -391,7 +440,7 @@ L_DRAW_BAR:
 	mov ebx, draw_delay
 	.if ebx != 0
 	push eax
-	mov eax, draw_delay_time
+	mov eax, ebx
 	call Delay
 	pop eax
 	.endif
@@ -443,7 +492,7 @@ L_DRAW_STRAIGHT:
 	mov ebx, draw_delay
 	.if ebx != 0
 	push eax
-	mov eax, draw_delay_time
+	mov eax, draw_delay
 	call Delay
 	pop eax
 	.endif
@@ -461,7 +510,8 @@ restore_color ENDP
 ; == restore color ==========================
 
 ; == get key ================================
-; the result of key will store in al
+; NOTE get_key
+; parameters: the result of key will store in al
 ; -------------------------------------------
 get_key PROC
 L_wait_key:
