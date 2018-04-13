@@ -78,7 +78,7 @@ str_opt2_msg BYTE 10, 13,
 ; opt3 message
 str_opt3_msg BYTE 10, 13,
 " === Play === ", 10, 13, 10, 13,
-" press 'e' to move up and press 'c' to move down ", 10, 13, 10, 13, 0
+" (press 'e' to move up and press 'c' to move down, space bar to back to the menu) ", 10, 13, 10, 13, 0
 
 ; opt4 message
 str_opt4_msg BYTE 10, 13,
@@ -233,12 +233,22 @@ L_opt1_get_n:
 	mWrite " > Input number of color: "
 	call get_key
 	sub al, '0'
+	.if al == 1
+	mov al, blue
+	.elseif al == 2
+	mov al, green
+	.else
+	mov al, yellow
+	.endif
 	mov ship_color, al
 	mov al, 7
 	call WriteChar
 	call Crlf
 	call Crlf
-	mWrite " The ship color is changed."
+	mWrite " The ship color is changed to "
+	mov al, ship_color
+	add al, '0'
+	call WriteChar
 L_opt1_quit:
 	call waitKey
 	ret
@@ -258,12 +268,12 @@ opt_2 PROC
 	call set_background_color
 	; draw left
 	mov eax, 0 ; x
-	mov ebx, 4 ; y
+	mov ebx, 5 ; y
 	movzx ecx, frame_height
 	mov draw_delay, 25
-	INVOKE draw_straight, 0, 4, ecx
+	INVOKE draw_straight, 0, 5, ecx
 	; draw bottom
-	add ecx, 4
+	add ecx, 5
 	movzx ebx, frame_width
 	INVOKE draw_bar, ecx, ebx
 	; draw right
@@ -271,7 +281,7 @@ opt_2 PROC
 	movzx edx, frame_height
 	INVOKE draw_straight, ebx, ecx, edx ; x, y, length
 	; draw top
-	INVOKE draw_bar, 4, ebx
+	INVOKE draw_bar, 5, ebx
 
 	call Crlf
 	mov draw_delay, 0
@@ -325,11 +335,10 @@ opt_3 PROC
 	invoke WriteChar
 	mov ship_x, dl
 	mov ship_y, dh
+	mov ship_old_x, dl
 
 L_opt3_ship_moving:
 	mov ship_height_change, 0
-	mov al, ship_x
-	mov ship_old_x, al
 	mov al, ship_y
 	mov ship_old_y, al
 	call ReadKey
@@ -339,16 +348,16 @@ L_opt3_ship_moving:
 	dec ship_height_change
 	mov dh, ship_y
 	dec dh
-	.if dh > 30 ; out of boundary
-	mov dh, 6
+	.if dh < 6 ; out of boundary
+	mov dh, 26
 	.endif
 	mov ship_y, dh
 	.elseif al == 'c'
 	inc ship_height_change
 	mov dh, ship_y
 	inc dh
-	.if dh < 0 ; out of boundary
-	mov dh, 29
+	.if dh > 26 ; out of boundary
+	mov dh, 6
 	.endif
 	mov ship_y, dh
 	.elseif al == ' '
@@ -356,10 +365,24 @@ L_opt3_ship_moving:
 	.endif
 
 L_opt3_no_key_pressed:
-	.if ship_height_change != 0
 	; erase whole ship
-	mov dl, ship_x
+	mov dl, ship_old_x
 	mov dh, ship_old_y
+	.if dl < 5
+	movzx ebx, frame_width
+	movzx ecx, frame_height
+	sub ecx, 2
+	movzx eax, ship_color
+	call set_background_color
+	INVOKE draw_straight, ebx, 5, ecx ; x, y, length
+	mov eax, black
+	call set_background_color
+	INVOKE draw_straight, 1, 6, ecx ; x, y, length
+	INVOKE draw_straight, 2, 6, ecx ; x, y, length
+	INVOKE draw_straight, 3, 6, ecx ; x, y, length
+	mov dl, ship_old_x
+	mov dh, ship_old_y
+	.endif
 	mov eax, black
 	call set_background_color
 	call Gotoxy
@@ -367,16 +390,29 @@ L_opt3_no_key_pressed:
   invoke WriteChar
 	invoke WriteChar
 	invoke WriteChar
+	invoke WriteChar
+
+	; draw new ship
 	movzx eax, ship_color
 	call set_background_color
 	mov dh, ship_y
+	mov dl, ship_x
+	mov ship_old_x, dl
+	inc dl
+	.if dl > 77
+	mov dl, 1
+	; draw left frame
+	movzx ebx, frame_width
+	movzx ecx, frame_height
+	INVOKE draw_straight, 0, 5, ecx
+	INVOKE draw_straight, ebx, 5, ecx ; x, y, length
+	.endif
+	mov ship_x, dl
 	call Gotoxy
 	mov al, ' '
   invoke WriteChar
 	invoke WriteChar
 	invoke WriteChar
-	.else
-	.endif
 
 	mov eax, 50
 	call Delay
