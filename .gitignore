@@ -1,1 +1,6 @@
-hw2/sample.asm
+./hw2/sample.asm
+./hw2/*.sdr
+*.sdr
+*.inc
+*.txt
+/hw2/img/
