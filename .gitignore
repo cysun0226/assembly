@@ -4,3 +4,9 @@
 *.inc
 *.txt
 /hw2/img/
+*.docx
+*.pdf
+compare_str.asm
+menu_new.asm
+menu_print.asm
+
