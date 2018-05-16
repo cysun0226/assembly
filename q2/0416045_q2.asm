@@ -1,9 +1,9 @@
 ; ==========================================
 ; quiz 2
 ; ==========================================
-; $Student Name:  Chia-Yu, Sun
-; $Student ID:    0416045
-; $Student Email: cysun0226@gmail.com
+; Student Name:  Chia-Yu, Sun
+; Student ID:    0416045
+; Student Email: cysun0226@gmail.com
 ; ==========================================
 
 
@@ -433,7 +433,7 @@ draw_frame PROC USES eax ebx ecx edx,
 	call restore_color
 	ret
 draw_frame ENDP
-; == draw straight ==========================
+; == draw frame =============================
 
 ; == restore color ==========================
 restore_color PROC
