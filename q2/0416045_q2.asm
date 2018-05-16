@@ -38,6 +38,10 @@ x_start: DWORD,
 y_start: DWORD,
 map: DWORD
 
+erase_bitmap PROTO,
+x_start: DWORD,
+y_start: DWORD
+
 p DWORD 2, 3, 4
 opt BYTE ?
 FRAME_WIDTH BYTE 80
@@ -49,45 +53,14 @@ menu_frame_color BYTE green
 menu_text_color BYTE white
 wait_option_height BYTE 11
 bitmap_color BYTE yellow
+bitmap_type DWORD 0
 draw_delay DWORD 0
 draw_inverse DWORD 0
 draw_delay_time DWORD 25
-ship_height_change DWORD 0
-ship_x BYTE ?
-ship_y BYTE ?
-ship_old_x BYTE ?
-ship_old_y BYTE ?
-
-; menu
-str_menu BYTE  10, 13,
-"   === Options === ", 10, 13, 10, 13,
-"   1. Change ship color ", 10, 13,
-"   2. Show a frame around the screen rectangular area ", 10, 13,
-"   3. Play now!!! ", 10, 13,
-"   4. Show author information ", 10, 13,
-"   5. Quit game ", 10, 13, 10, 13,
-"   > Please select an option: ", 0
-
-; opt1 message
-str_opt1_msg BYTE 10, 13,
-" === Change ship color === ", 10, 13, 10, 13,
-" Please select a color for the space ship. ", 10, 13, 10, 13, 0
-
-; opt2 message
-str_opt2_msg BYTE 10, 13,
-" === Show a frame === ", 10, 13, 10, 13, 0
-
-; opt3 message
-str_opt3_msg BYTE 10, 13,
-" === Play === ", 10, 13, 10, 13,
-" (press 'e' to move up and press 'c' to move down, space bar to back to the menu) ", 10, 13, 10, 13, 0
-
-; opt4 message
-str_opt4_msg BYTE 10, 13,
-"   === Show author information === ", 10, 13, 10, 13,
-"   Studnet ID    : 0416045 ", 10, 13,
-"   Studnet name  : Chia-Yu, Sun ", 10, 13,
-"   Studnet email : cysun0226@gmail.com ", 10, 13, 10, 13, 0
+bitmap_x DWORD ?
+bitmap_y DWORD ?
+bitmap_old_x DWORD ?
+bitmap_old_y DWORD ?
 
 BITMAP_WIDTH	DWORD	5
 BITMAP_HEIGHT	DWORD	3
@@ -117,23 +90,18 @@ str_quit_msg BYTE 10, 13, 10, 13,
 main PROC
   movzx ebx, FRAME_WIDTH
 	movzx ecx, FRAME_HEIGHT
+
   call Crlf
   mWrite " === Quiz 2 ==="
-  INVOKE draw_bitmap, 3, 3, 0
-  call waitKey
-
   call Crlf
 	INVOKE draw_frame, 0, 3, ebx, ecx
-
-
-
   call Crlf
   call Crlf
   mWrite " > Press w a s d to move the bit map"
   call Crlf
   mWrite " > Press space bar to switch the bit map"
   call Crlf
-  mWrite " > Press esc to quit"
+  mWrite " > Press q or esc to quit"
 
   call play_bitmap
 	; call waitKey
@@ -151,105 +119,63 @@ main ENDP
 ; == play_bitmap =====================
 ; NOTE play bitmap
 play_bitmap PROC
-	; show the ship in the middle
-	movzx eax, bitmap_color
-	shl eax, 4
-	call SetTextColor
-	mov dh, 17
-	mov bh, dl
-	mov dl, 38
-	call Gotoxy
-	mov al, ' '
-  invoke WriteChar
-	invoke WriteChar
-	invoke WriteChar
-	mov ship_x, dl
-	mov ship_y, dh
-	mov ship_old_x, dl
+  ; show bitmap in the middle
+  mov ebx, 38
+  mov edx, 17
+  mov ecx, bitmap_type
+  INVOKE draw_bitmap, ebx, edx, ecx
 
-L_opt3_ship_moving:
-	mov ship_height_change, 0
-	mov al, ship_y
-	mov ship_old_y, al
-	call ReadKey
+L_bitmap_moving:
+  push ebx
+  push edx
+	call get_key
 	; no key is pressed
-	jz L_opt3_no_key_pressed
+  pop edx
+  pop ebx
+
+  INVOKE erase_bitmap, ebx, edx
+
 	.if al == 'w'
-	dec ship_height_change
-	mov dh, ship_y
-	dec dh
-	.if dh < 6 ; out of boundary
-	mov dh, 26
+  .if edx > 4 ; in boundary
+	dec edx
 	.endif
-	mov ship_y, dh
+
 	.elseif al == 's'
-	inc ship_height_change
-	mov dh, ship_y
-	inc dh
-	.if dh > 26 ; out of boundary
-	mov dh, 6
-	.endif
-	mov ship_y, dh
-	.elseif al == ' '
-	jmp L_opt3_quit
-	.endif
+  .if edx < 24
+  inc edx
+  .endif
 
-L_opt3_no_key_pressed:
-	; erase whole ship
-	mov dl, ship_old_x
-	mov dh, ship_old_y
-	.if dl < 5
-	movzx ebx, frame_width
-	movzx ecx, frame_height
-	sub ecx, 2
-	movzx eax, bitmap_color
-	call set_background_color
-	INVOKE draw_straight, ebx, 5, ecx ; x, y, length
-	mov eax, black
-	call set_background_color
-	INVOKE draw_straight, 1, 6, ecx ; x, y, length
-	INVOKE draw_straight, 2, 6, ecx ; x, y, length
-	INVOKE draw_straight, 3, 6, ecx ; x, y, length
-	mov dl, ship_old_x
-	mov dh, ship_old_y
-	.endif
-	mov eax, black
-	call set_background_color
-	call Gotoxy
-	mov al, ' '
-  invoke WriteChar
-	invoke WriteChar
-	invoke WriteChar
-	invoke WriteChar
+  .elseif al == 'a'
+  .if ebx > 1
+  dec ebx
+  .endif
 
-	; draw new ship
-	movzx eax, bitmap_color
-	call set_background_color
-	mov dh, ship_y
-	mov dl, ship_x
-	mov ship_old_x, dl
-	; inc dl
+  .elseif al == 'd'
+  .if ebx < 75
+  inc ebx
+  .endif
 
-	.if dl > 77
-	mov dl, 1
-	; draw left frame
-	movzx ebx, frame_width
-	movzx ecx, frame_height
-	INVOKE draw_straight, 0, 5, ecx
-	INVOKE draw_straight, ebx, 5, ecx ; x, y, length
-	.endif
-	mov ship_x, dl
-	call Gotoxy
-	mov al, ' '
-  invoke WriteChar
-	invoke WriteChar
-	invoke WriteChar
+  .elseif al == 'b'
+  mov bitmap_type, 0
+  mov ecx, 0
 
-	mov eax, 50
-	call Delay
-	jmp L_opt3_ship_moving
+  .elseif al == ' '
+  mov ecx, 1
+  sub ecx, bitmap_type
+  mov bitmap_type, ecx
 
-L_opt3_quit:
+	.elseif al == 27 ; esc
+	jmp L_bitmap_quit
+
+  .elseif al == 'q'
+	jmp L_bitmap_quit
+
+  .endif
+
+  INVOKE draw_bitmap, ebx, edx, ecx
+  jmp L_bitmap_moving
+
+L_bitmap_quit:
   call restore_color
 	ret
 play_bitmap ENDP
@@ -257,12 +183,17 @@ play_bitmap ENDP
 
 ; == draw_bitmap =====================
 ; LABEL draw bitmap
-; function: draw_frame(int x, int y, int map)
+; function: draw_bitmap(int x, int y, int map)
 ; -------------------------------------------
 draw_bitmap PROC USES eax ebx ecx edx,
 	x_start: DWORD,
 	y_start: DWORD,
 	map: DWORD
+
+  push eax
+  push ebx
+  push ecx
+  push edx
 
   mov eax, y_start
   mov tmp_casting, eax
@@ -274,8 +205,10 @@ draw_bitmap PROC USES eax ebx ecx edx,
 
   .if map == 0
   mov esi, offset BITMAP1
+  mov bitmap_color, yellow
   .else
   mov esi, offset BITMAP2
+  mov bitmap_color, blue
   .endif
 
   mov ecx, 3
@@ -298,11 +231,60 @@ L_DRAW_BITMAP_ROW:
   inc dh
   call Gotoxy
   loop L_DRAW_BITMAP
+  call restore_color
 
+  pop edx
+  pop ecx
+  pop ebx
+  pop eax
   ret
 draw_bitmap ENDP
 
 ; == draw_bitmap =====================
+
+; == erase_bitmap =====================
+; LABEL erase bitmap
+; function: erase_bitmap(int x, int y)
+; -------------------------------------------
+erase_bitmap PROC USES eax ebx ecx edx,
+	x_start: DWORD,
+	y_start: DWORD
+
+  push eax
+  push ebx
+  push ecx
+  push edx
+
+  mov eax, y_start
+  mov tmp_casting, eax
+	mov dh, BYTE PTR tmp_casting
+  mov eax, x_start
+  mov tmp_casting, eax
+	mov dl, BYTE PTR tmp_casting
+  call Gotoxy
+  call restore_color
+
+  mov ecx, 3
+L_ERASE_BITMAP:
+  push ecx
+  mov ecx, 5
+L_ERASE_BITMAP_ROW:
+  mov al, ' '
+  INVOKE WriteChar
+  loop L_ERASE_BITMAP_ROW
+  pop ecx
+  inc dh
+  call Gotoxy
+  loop L_ERASE_BITMAP
+
+  pop edx
+  pop ecx
+  pop ebx
+  pop eax
+  ret
+erase_bitmap ENDP
+
+; == erase_bitmap =====================
 
 
 ; == waitKey =====================
@@ -328,7 +310,7 @@ waitKey ENDP
 ; --------------------------------------------------
 draw_bar PROC USES eax ebx ecx edx,
 	y_start: DWORD,
-	line_length: DWORD,
+	line_length: DWORD
 	; delay_time: BYTE,
 	; is_inverse: BYTE
 
