@@ -42,7 +42,6 @@ menu_background_color BYTE black
 menu_frame_color BYTE yellow
 menu_text_color BYTE white
 wait_option_height BYTE 11
-ship_color BYTE yellow
 draw_delay DWORD 0
 draw_inverse DWORD 0
 draw_delay_time DWORD 25
@@ -122,7 +121,7 @@ case_2:
 	cmp opt, '2'
 	jne L_end_case
 	call opt_2
-	jmp L_end_case
+	jmp L_quit
 L_end_case:
 	jmp L_menu
 L_quit:
@@ -182,6 +181,7 @@ L_opt2_loop:
 	call get_key
 
 	.if al == 'q'
+		jmp L_opt2_quit
 	.endif
 
 	.if al == 'r'
@@ -212,7 +212,9 @@ L_opt2_loop:
 		mov ebx, current_top_row
 		INVOKE draw_bar, ebx, 61
 		mov row_or_frame, 0
-		inc ebx
+		.if ebx < 21
+			inc ebx
+		.endif
 		mov current_top_row, ebx
 	.endif
 
@@ -223,7 +225,9 @@ L_opt2_loop:
 		mov ebx, current_bottom_row
 		INVOKE draw_bar, ebx, 61
 		mov row_or_frame, 0
-		dec ebx
+		.if ebx > 2
+			dec ebx
+		.endif
 		mov current_bottom_row, ebx
 	.endif
 
@@ -232,7 +236,9 @@ L_opt2_loop:
 		call set_background_color
 		mov ebx, current_left_col
 		INVOKE draw_straight, ebx, 2, 20
-		inc ebx
+		.if ebx < 61
+			inc ebx
+		.endif
 		mov current_left_col, ebx
 	.endif
 
@@ -241,14 +247,16 @@ L_opt2_loop:
 		call set_background_color
 		mov ebx, current_right_col
 		INVOKE draw_straight, ebx, 2, 20
-		dec ebx
+		.if ebx > 1
+			dec ebx
+		.endif
 		mov current_right_col, ebx
 	.endif
 
 	jmp L_opt2_loop
 
-
 L_opt2_quit:
+	call restore_color
 	ret
 opt_2 ENDP
 ; == opt2 =====================
