@@ -26,10 +26,16 @@ x_start: DWORD,
 y_start: DWORD,
 line_length: DWORD
 
-p DWORD 2, 3, 4
+draw_frame PROTO,
+x_start: DWORD,
+y_start: DWORD,
+f_width: DWORD,
+f_height: DWORD
+
+
 opt BYTE ?
-frame_width BYTE 80
-frame_height BYTE 23
+frame_width BYTE 62
+frame_height BYTE 22
 menu_height BYTE 20
 tmp_casting DWORD ?
 menu_background_color BYTE black
@@ -40,11 +46,15 @@ ship_color BYTE yellow
 draw_delay DWORD 0
 draw_inverse DWORD 0
 draw_delay_time DWORD 25
-ship_height_change DWORD 0
-ship_x BYTE ?
-ship_y BYTE ?
-ship_old_x BYTE ?
-ship_old_y BYTE ?
+
+current_left_col DWORD 1
+current_right_col DWORD 61
+current_top_row DWORD 2
+current_bottom_row DWORD 21
+
+display_frame DWORD 1
+frame_color DWORD lightCyan
+row_or_frame BYTE 0
 
 ; opt1
 
@@ -166,36 +176,78 @@ opt_2 PROC
 	call Clrscr
 	mov edx, offset str_opt2_msg
 	invoke WriteString
+	mWrite " > Press r to build a new bitmap"
 
-	; draw frame
-	movzx eax, ship_color
-	call set_background_color
-	; draw left
-	mov eax, 0 ; x
-	mov ebx, 5 ; y
-	movzx ecx, frame_height
-	mov draw_delay, 25
-	INVOKE draw_straight, 0, 5, ecx
-	; draw bottom
-	add ecx, 5
-	movzx ebx, frame_width
-	INVOKE draw_bar, ecx, ebx
-	; draw right
-	mov draw_inverse, 1
-	movzx edx, frame_height
-	INVOKE draw_straight, ebx, ecx, edx ; x, y, length
-	; draw top
-	INVOKE draw_bar, 5, ebx
+L_opt2_loop:
+	call get_key
 
-	call Crlf
-	mov draw_delay, 0
-	mov draw_inverse, 0
-	call restore_color
-	mov dh, 1
-	mov dl, 5
-	call Gotoxy
-	call waitKey
-	; jmp L_opt2
+	.if al == 'q'
+	.endif
+
+	.if al == 'r'
+		call draw_map
+		mov current_left_col, 1
+		mov current_right_col, 61
+		mov current_top_row, 2
+		mov current_bottom_row, 21
+	.endif
+
+	.if al == 'f'
+		.if display_frame == 1
+			mov display_frame, 0
+			mov eax, gray
+		.else
+			mov display_frame, 1
+			mov eax, lightCyan
+		.endif
+		mov frame_color, eax
+		call set_background_color
+		INVOKE draw_frame, 0, 1, 62, 20
+	.endif
+
+	.if al == 'w'
+		mov eax, gray
+		call set_background_color
+		mov row_or_frame, 1
+		mov ebx, current_top_row
+		INVOKE draw_bar, ebx, 61
+		mov row_or_frame, 0
+		inc ebx
+		mov current_top_row, ebx
+	.endif
+
+	.if al == 's'
+		mov eax, gray
+		call set_background_color
+		mov row_or_frame, 1
+		mov ebx, current_bottom_row
+		INVOKE draw_bar, ebx, 61
+		mov row_or_frame, 0
+		dec ebx
+		mov current_bottom_row, ebx
+	.endif
+
+	.if al == 'a'
+		mov eax, gray
+		call set_background_color
+		mov ebx, current_left_col
+		INVOKE draw_straight, ebx, 2, 20
+		inc ebx
+		mov current_left_col, ebx
+	.endif
+
+	.if al == 'd'
+		mov eax, gray
+		call set_background_color
+		mov ebx, current_right_col
+		INVOKE draw_straight, ebx, 2, 20
+		dec ebx
+		mov current_right_col, ebx
+	.endif
+
+	jmp L_opt2_loop
+
+
 L_opt2_quit:
 	ret
 opt_2 ENDP
@@ -216,11 +268,47 @@ L_wait_anykey:
 waitKey ENDP
 ; == waitKey =====================
 
+; == draw map ===============================
+; LABEL draw map
+draw_map PROC USES eax ebx ecx edx
+	call Randomize
+	mov dh, 1
+	mov dl, 0
+	call Gotoxy
+	mov ecx, 20
+L_draw_map:
+	push ecx
+	mov dl, 0
+	inc dh
+	call Gotoxy
+	mov ecx, 62
+L_draw_map_row:
+L_choose_new_color:
+	mov eax, 14; color
+	call RandomRange
+	inc eax
+	cmp eax, gray
+	je L_choose_new_color
+	call set_background_color
+	mov al, ' '
+	call WriteChar
+	loop L_draw_map_row
+	pop ecx
+	loop L_draw_map
+
+	mov eax, frame_color
+	call set_background_color
+	INVOKE draw_frame, 0, 1, 62, 20
+
+	call restore_color
+	ret
+draw_map ENDP
+; == draw map ===============================
+
 ; == draw frame =============================
 ; LABEL draw frame
 ; function: draw_frame(int x, int y, width, height)
 ; receive: x_start, y_start, width, height
-; pass by PROTO
 ; -------------------------------------------
 draw_frame PROC USES eax ebx ecx edx,
 	x_start: DWORD,
@@ -228,11 +316,6 @@ draw_frame PROC USES eax ebx ecx edx,
 	f_width: DWORD,
 	f_height: DWORD
 
-
-	; menu border
-	movzx eax, menu_frame_color
-	shl eax, 4
-	call SetTextColor
 	; bottom border
 	mov ebx, f_height
 	inc ebx
@@ -275,7 +358,10 @@ draw_bar PROC USES eax ebx ecx edx,
 
   ; mov tmp_casting,
   mov dh, BYTE PTR y_start
-  mov dl, 0
+	mov dl, 0
+	.if row_or_frame == 1
+		inc dl
+	.endif
 	mov ebx, draw_inverse
 	.if draw_inverse != 0
 	mov bl, BYTE PTR line_length
