@@ -66,24 +66,41 @@ MYINFO	BYTE "My Student Name: Chia-Yu, Sun; StudentID: 0416045",0
 OpenMsgDelay	DWORD	25
 EnterStageDelay	DWORD	50
 
-MyMsg BYTE "Assignment Three for Assembly Language...",0dh, 0ah
-BYTE "My Student Name: Chia-Yu, Sun",0dh, 0ah
-BYTE "My student ID: 0416045.", 0dh, 0ah, 0dh, 0ah
-BYTE "My Email is: cysun0226@gmail.com", 0dh, 0ah, 0dh, 0ah
-BYTE "Make sure that the screen dimension is (120, 30).", 0dh, 0ah, 0dh, 0ah
-BYTE "Key usages:", 0dh, 0ah
-BYTE "Control keys: a, d, w, s", 0dh, 0ah
-BYTE "Mouse.......", 0dh, 0ah
-BYTE "More key usage......", 0
+MyMsg BYTE 0dh, 0ah, " == Assignment Three for Assembly Language == ", 0dh, 0ah, 0dh, 0ah
+BYTE " Programmer Name : Chia-Yu, Sun", 0dh, 0ah
+BYTE " Programmer ID   : 0416045", 0dh, 0ah
+BYTE " Email Address   : cysun0226@gmail.com", 0dh, 0ah, 0dh, 0ah
+BYTE " ( Make sure that the screen dimension is (120, 30). )", 0dh, 0ah, 0dh, 0ah
+BYTE " Key usages:", 0dh, 0ah, 0dh, 0ah
+BYTE "  'a': left, 'd': right, 'w': up, 's': down", 0dh, 0ah
+BYTE "  'p': rainbow color " , 0dh, 0ah
+BYTE "  'r': random color " , 0dh, 0ah
+BYTE "  'c': clear " , 0dh, 0ah
+BYTE "  'l': load " , 0dh, 0ah
+BYTE "  'v': save " , 0dh, 0ah
+BYTE "  spacebar : toggle grow / not grow", 0dh, 0ah
+BYTE "  ESC : quit the program", 0dh, 0ah, 0dh, 0ah
+
+BYTE " Mouse usages: ", 0dh, 0ah, 0dh, 0ah
+BYTE "  passive mouse movement: show the mouse cursor", 0dh, 0ah
+BYTE "  left mouse button: set target", 0dh, 0ah, 0dh, 0ah, 0
 
 CaptionString BYTE "Student Name: Chia-Yu, Sun",0
 MessageString BYTE "Welcome to Snake game", 0dh, 0ah, 0dh, 0ah
-				BYTE "My Student ID is 0416045", 0dh, 0ah, 0dh, 0ah
+				BYTE "My Student ID is 0416045", 0dh, 0ah
 				BYTE "My Email is: cysun0226@gmail.com", 0dh, 0ah, 0dh, 0ah
-				BYTE "Control keys: a, d, w, s", 0dh, 0ah
-				BYTE "Mouse.......", 0dh, 0ah, 0dh, 0ah
-				BYTE "......", 0dh, 0ah, 0dh, 0ah
-				BYTE "ESC: quit", 0dh, 0ah
+				BYTE "Control keys: ", 0dh, 0ah, 0dh, 0ah
+				BYTE "  'a': left, 'd': right, 'w': up, 's': down", 0dh, 0ah
+				BYTE "  'p': rainbow color " , 0dh, 0ah
+				BYTE "  'r': random color " , 0dh, 0ah
+				BYTE "  'c': clear " , 0dh, 0ah
+				BYTE "  'l': load " , 0dh, 0ah
+				BYTE "  'v': save " , 0dh, 0ah
+				BYTE "  spacebar : toggle grow / not grow", 0dh, 0ah
+				BYTE "  ESC : quit the program", 0dh, 0ah, 0dh, 0ah
+				BYTE " Mouse usages: ", 0dh, 0ah, 0dh, 0ah
+				BYTE "  passive mouse movement: show the mouse cursor", 0dh, 0ah
+				BYTE "  left mouse button: set target", 0dh, 0ah, 0dh, 0ah
 				BYTE "Enjoy playing!", 0
 
 CaptionString_EndingMessage BYTE "Student Name: Chia-Yu, Sun",0
@@ -91,8 +108,6 @@ MessageString_EndingMessage BYTE "Thanks for playing...", 0dh, 0ah, 0dh, 0ah
 				BYTE "My Student ID is 0416045", 0dh, 0ah, 0dh, 0ah
 				BYTE "My Email is: cysun0226@gmail.com", 0dh, 0ah, 0dh, 0ah
 				BYTE "See you!", 0
-
-
 
 EndingMsg BYTE "Thanks for playing.", 0
 
@@ -221,14 +236,18 @@ FlgGrayLevelImage	BYTE	0	;6
 
 programState		BYTE	0
 
+; LABEL my var
+IMAGE_HEIGHT	DWORD ?
+IMAGE_WIDTH	DWORD ?
+
 .code
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;void asm_ClearScreen()
+; ===========================================
+; void asm_ClearScreen()
 ;
-;Clear the screen.
-;We can set text color if you want.
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Clear the screen.
+; We can set text color if you want.
+; ===========================================
 asm_ClearScreen PROC C
 	mov al, 0
 	mov ah, 0
@@ -236,6 +255,7 @@ asm_ClearScreen PROC C
 	call clrscr
 	ret
 asm_ClearScreen ENDP
+; ===========================================
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;void asm_ShowTitle()
@@ -246,10 +266,7 @@ asm_ClearScreen ENDP
 asm_ShowTitle PROC C USES edx
 	mov dx, 0
 	call GotoXY
-	xor eax, eax
-	mov ah, 0h
-	mov al, 0e1h
-	call SetTextColor
+	call resetColor
 	mov edx, offset MyMsg
 	call WriteString
 	ret
@@ -726,9 +743,49 @@ asm_SetImageInfo PROC C USES esi edi ebx,
 	imageIndex : DWORD,
 	imagePtr : PTR BYTE, w : DWORD, h : DWORD,
 	bytesPerPixel : DWORD
-	;;;;;;;;;;;;;;;;;;;;;;;
-	; TODO Set Image Info
-	;;;;;;;;;;;;;;;;;;;;;;;
+
+	; CHANGED Set Image Info
+
+	; store image into mImagePtrx
+	mov eax, w
+	mov mImageWidth, eax
+	mov ebx, h
+	mov mImageHeight, ebx
+	mul ebx ; eax = mImageWidth * mImageHeight
+	.if imageIndex == 0
+	mov esi, offset mImagePtr0
+	.else
+	mov esi, offset mImagePtr1
+	.endif
+	mov ecx, eax
+L_SET_IMG_INFO:
+		mov ebx, ecx
+		mov eax, 3
+		mul ebx ; eax = ecx*3
+		mov ebx, imagePtr
+		; r
+		add ebx, eax ; ebx = imagePtr + ecx*3
+		mov dl, BYTE PTR [ebx]
+		push ebx
+		mov ebx, esi
+		add ebx, eax ; ebx = mImagePtr0 + ecx*3
+		mov BYTE PTR [ebx], dl
+		; g
+		pop eax ; imagePtr + ecx*3
+		inc eax
+		inc ebx ; mImagePtr0 + ecx*3
+		mov dl, BYTE PTR [eax]
+		mov BYTE PTR [ebx], dl
+		; b
+		inc eax
+		inc ebx ; mImagePtr0 + ecx*3
+		mov dl, BYTE PTR [eax]
+		mov BYTE PTR [ebx], dl
+
+	loop L_SET_IMG_INFO
+
+	call waitKey
+
 	ret
 asm_SetImageInfo ENDP
 ; == asm_SetImageInfo =======================
@@ -757,18 +814,49 @@ asm_GetImageColour PROC C USES ebx esi,
 	imageIndex : DWORD,
 	ix: DWORD, iy : DWORD,
 	r: PTR DWORD, g: PTR DWORD, b: PTR DWORD
-	;;;;;;;;;;;;;;;;;;;;;;;
+
 	; TODO Get Image Colour
-	;;;;;;;;;;;;;;;;;;;;;;;
-	mov eax, 255
+	mov ebx, mImageWidth; index = iy*w + ix
+	mov eax, iy
+	mov edx, mImageHeight
+	sub edx, eax
+	mov eax, edx
+	mul ebx ; eax = iy*w
+	mov ebx, ix
+	add eax, ebx ; eax = iy*w + ix
+	; call WriteHex
+	; call Crlf
+	; call waitKey
+	mov ebx, 3
+	mul ebx ; eax = 3* (iy*w + ix)
+
+	mov esi, eax
+	mov ebx, offset mImagePtr0
+	add esi, ebx
+
+	; mov eax, 255
 	mov ebx, r
-	mov [ebx], eax
-	mov eax, 255
+	mov al, BYTE PTR [esi]
+	mov BYTE PTR [ebx], al
+	; call WriteHex
+	; mWrite " "
+
+	; mov eax, 50
+	inc esi
 	mov ebx, g
-	mov [ebx], eax
-	mov eax, 255
+	mov al, BYTE PTR [esi]
+	mov BYTE PTR [ebx], al
+	; call WriteHex
+	; mWrite " "
+
+	; mov eax, 255
+	inc esi
+	mov al, BYTE PTR [esi]
 	mov ebx, b
-	mov [ebx], eax
+	mov BYTE PTR [ebx], al
+	; call WriteHex
+	; call Crlf
+
 	ret
 asm_GetImageColour ENDP
 ; == asm_GetImageColour =====================
@@ -778,7 +866,7 @@ asm_GetImageColour ENDP
 ; LABEL asm_getStudentInfoString
 ; -------------------------------------------
 ; const char *asm_getStudentInfoString()
-; return pointer in edx
+; return pointer in eax
 ; -------------------------------------------
 asm_getStudentInfoString PROC C
 	mov eax, offset MYINFO
@@ -796,13 +884,12 @@ asm_getStudentInfoString ENDP
 ; -------------------------------------------
 asm_GetImageDimension PROC C USES ebx,
 iw : PTR DWORD, ih : PTR DWORD
-	;;;;;;;;;;;;;;;;;;;;;;;
-	; TODO Get Image Dimension
-	;;;;;;;;;;;;;;;;;;;;;;;
+	; DONE Get Image Dimension
 	mov ebx, iw
-	mov eax, 2
+	mov eax, mImageWidth
 	mov [ebx], eax
 	mov ebx, ih
+	mov eax, mImageHeight
 	mov [ebx], eax
 	ret
 asm_GetImageDimension ENDP
@@ -835,13 +922,37 @@ asm_GetImagePos ENDP
 ; LABEL AskForInput_Initialization
 ; -------------------------------------------
 AskForInput_Initialization PROC USES ebx edi esi
-	mov al, blue + white*16
-	or al, 88h
-	mov ah, 080h
-	call SetTextColor
-	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-	; TODO Ask For Input Init
-	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	; DONE Ask For Input Init
+	mWrite " Initialization setting: "
+	call Crlf
+	call Crlf
+	mWrite "  ( If the user does not input anything,"
+	call Crlf
+	mWrite "    the program will use the default value. )"
+	call Crlf
+	mWrite "  > please input snake speed: "
+	call readInt
+	.if eax == 0
+	mov snakeSpeed, 100
+	.else
+	mov snakeSpeed, eax
+	.endif
+
+	mWrite "  > please input snake life cycle: "
+	call readInt
+	.if eax == 0
+	mov snakeLifeCycle, 25
+	.else
+	mov snakeLifeCycle, eax
+	.endif
+
+	call Crlf
+	call Crlf
+	call Crlf
+	mWrite " --- log ---"
+	call Crlf
+	call Crlf
+
 	mov ebx, OFFSET CaptionString
 	mov edx, OFFSET MessageString
 	call MsgBox
