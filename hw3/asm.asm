@@ -61,7 +61,7 @@ PROGRAM_STATE_END_GAME			= 5
 colors BYTE 01ch
 colorOriginal BYTE 01ch
 
-MYINFO	BYTE "My Student Name: Chia-Yu, Sun; StudentID: 0416045",0
+MYINFO	BYTE " Name: Chia-Yu, Sun; ID: 0416045", 0
 
 OpenMsgDelay	DWORD	25
 EnterStageDelay	DWORD	50
@@ -70,7 +70,7 @@ MyMsg BYTE 0dh, 0ah, " == Assignment Three for Assembly Language == ", 0dh, 0ah,
 BYTE " Programmer Name : Chia-Yu, Sun", 0dh, 0ah
 BYTE " Programmer ID   : 0416045", 0dh, 0ah
 BYTE " Email Address   : cysun0226@gmail.com", 0dh, 0ah, 0dh, 0ah
-BYTE " ( Make sure that the screen dimension is (120, 30). )", 0dh, 0ah, 0dh, 0ah
+BYTE " >> Make sure that the screen dimension is (120, 30).", 0dh, 0ah, 0dh, 0ah
 BYTE " Key usages:", 0dh, 0ah, 0dh, 0ah
 BYTE "  'a': left, 'd': right, 'w': up, 's': down", 0dh, 0ah
 BYTE "  'p': rainbow color " , 0dh, 0ah
@@ -340,16 +340,15 @@ setCursor ENDP
 ;   out_mouseX = mouseX;	// or *out_mouseX = mouseX;
 ;   out_mouseY = mouseY;	// or *out_mouseY = mouseY;
 ; -------------------------------------------
-asm_GetMouseXY PROC C USES edi,
+asm_GetMouseXY PROC C USES eax ebx edi,
 	out_mouseX: PTR SDWORD, out_mouseY: PTR SDWORD
-	;;;;;;;;;;;;;;;;;;;;;;;
-	; TODO get mouse xy
-	;;;;;;;;;;;;;;;;;;;;;;;
-	mov eax, 250
+	; DONE get mouse xy
+	mov eax, mouseX
 	mov ebx, out_mouseX
-	mov [ebx], eax
+	mov SDWORD PTR [ebx], eax
+	mov eax, mouseY
 	mov ebx, out_mouseY
-	mov [ebx], eax
+	mov SDWORD PTR [ebx], eax
 	ret
 asm_GetMouseXY ENDP
 ; == asm_GetMouseXY =========================
@@ -367,12 +366,17 @@ asm_GetMouseXY ENDP
 ;
 ; return flg_target
 ; -------------------------------------------
-asm_GetTargetXY PROC C USES edi,
+asm_GetTargetXY PROC C USES eax ebx edi,
 	out_mouseX: PTR SDWORD, out_mouseY: PTR SDWORD
-	;;;;;;;;;;;;;;;;;;;;;;;
-	; TODO get target xy
-	;;;;;;;;;;;;;;;;;;;;;;;
-	mov eax, 0
+
+	; DONE get target xy
+	mov eax, target_x
+	mov ebx, out_mouseX
+	mov SDWORD PTR [ebx], eax
+	mov eax, target_y
+	mov ebx, out_mouseY
+	mov SDWORD PTR [ebx], eax
+
 	ret
 asm_GetTargetXY ENDP
 ; == asm_GetTargetXY ========================
@@ -611,11 +615,8 @@ asm_SetWindowDimension ENDP
 ; Return the number of objects
 ; -------------------------------------------
 asm_GetNumOfObjects PROC C
-	;mov eax, maxNumObjects
-	;;;;;;;;;;;;;;;;;;;;;;;
-	; TODO Get Num Of Objects
-	;;;;;;;;;;;;;;;;;;;;;;;
-	mov eax, 1
+	; CHANGED Get Num Of Objects
+	mov eax, numSnakeObj
 	ret
 asm_GetNumOfObjects ENDP
 ; == asm_GetNumOfObjects ====================
@@ -650,9 +651,9 @@ asm_GetObjectType		ENDP
 ; -------------------------------------------
 asm_GetObjectColor  PROC C USES ebx edi esi,
 	r: PTR DWORD, g: PTR DWORD, b: PTR DWORD, objID: DWORD
-	;;;;;;;;;;;;;;;;;;;;;;;
+
 	; TODO Get Obj Color
-	;;;;;;;;;;;;;;;;;;;;;;;
+
 	mov ebx, r
 	mov eax, 255
 	mov [ebx], eax
@@ -681,12 +682,14 @@ asm_ComputeRotationAngle ENDP
 ; int asm_ComputeObjPositionY(int x, int objID)
 ; Return the x-coordinate.
 ; -------------------------------------------
-asm_ComputeObjPositionX PROC C USES edi esi,
+asm_ComputeObjPositionX PROC C USES eax ebx ecx edx edi esi,
 	x: DWORD, objID: DWORD
-	;;;;;;;;;;;;;;;;;;;;;;;
-	; TODO Obj Position X
-	;;;;;;;;;;;;;;;;;;;;;;;
-	mov eax, 0
+	; CHANGED Obj Position X
+	mov esi, offset snakeObjPosX
+	add esi, objID
+	mov eax, SDWORD PTR [esi]
+
+	mov eax, cur_snakeObjPosX
 	ret
 asm_ComputeObjPositionX ENDP
 ; == asm_ComputeObjPositionX ================
@@ -699,10 +702,12 @@ asm_ComputeObjPositionX ENDP
 ; -------------------------------------------
 asm_ComputeObjPositionY PROC C USES ebx esi edx,
 	y: DWORD, objID: DWORD
-	;;;;;;;;;;;;;;;;;;;;;;;
-	; TODO Obj Position Y
-	;;;;;;;;;;;;;;;;;;;;;;;
-	mov eax, 0
+	; CHANGED Obj Position Y
+	mov esi, offset snakeObjPosY
+	add esi, objID
+	mov eax, SDWORD PTR [esi]
+
+	mov eax, cur_snakeObjPosY
 	ret
 asm_ComputeObjPositionY ENDP
 ; == asm_ComputeObjPositionY ================
@@ -744,7 +749,7 @@ asm_SetImageInfo PROC C USES esi edi ebx,
 	imagePtr : PTR BYTE, w : DWORD, h : DWORD,
 	bytesPerPixel : DWORD
 
-	; CHANGED Set Image Info
+	; DONE Set Image Info
 
 	; store image into mImagePtrx
 	mov eax, w
@@ -781,10 +786,7 @@ L_SET_IMG_INFO:
 		inc ebx ; mImagePtr0 + ecx*3
 		mov dl, BYTE PTR [eax]
 		mov BYTE PTR [ebx], dl
-
 	loop L_SET_IMG_INFO
-
-	call waitKey
 
 	ret
 asm_SetImageInfo ENDP
@@ -815,7 +817,7 @@ asm_GetImageColour PROC C USES ebx esi,
 	ix: DWORD, iy : DWORD,
 	r: PTR DWORD, g: PTR DWORD, b: PTR DWORD
 
-	; TODO Get Image Colour
+	; DONE Get Image Colour
 	mov ebx, mImageWidth; index = iy*w + ix
 	mov eax, iy
 	mov edx, mImageHeight
@@ -824,9 +826,6 @@ asm_GetImageColour PROC C USES ebx esi,
 	mul ebx ; eax = iy*w
 	mov ebx, ix
 	add eax, ebx ; eax = iy*w + ix
-	; call WriteHex
-	; call Crlf
-	; call waitKey
 	mov ebx, 3
 	mul ebx ; eax = 3* (iy*w + ix)
 
@@ -834,28 +833,19 @@ asm_GetImageColour PROC C USES ebx esi,
 	mov ebx, offset mImagePtr0
 	add esi, ebx
 
-	; mov eax, 255
 	mov ebx, r
 	mov al, BYTE PTR [esi]
 	mov BYTE PTR [ebx], al
-	; call WriteHex
-	; mWrite " "
 
-	; mov eax, 50
 	inc esi
 	mov ebx, g
 	mov al, BYTE PTR [esi]
 	mov BYTE PTR [ebx], al
-	; call WriteHex
-	; mWrite " "
 
-	; mov eax, 255
 	inc esi
 	mov al, BYTE PTR [esi]
 	mov ebx, b
 	mov BYTE PTR [ebx], al
-	; call WriteHex
-	; call Crlf
 
 	ret
 asm_GetImageColour ENDP
@@ -926,9 +916,8 @@ AskForInput_Initialization PROC USES ebx edi esi
 	mWrite " Initialization setting: "
 	call Crlf
 	call Crlf
-	mWrite "  ( If the user does not input anything,"
+	mWrite "  ( If the user does not input anything, the program will use the default value. )"
 	call Crlf
-	mWrite "    the program will use the default value. )"
 	call Crlf
 	mWrite "  > please input snake speed: "
 	call readInt
@@ -964,7 +953,14 @@ AskForInput_Initialization ENDP
 ; LABEL initSnake
 ; -------------------------------------------
 initSnake PROC USES ebx edi esi
-	; TODO initSnake
+	; CHANGED initSnake
+
+	mov numSnakeObj, 1
+	mov snakeLife, 0
+	mov cur_snakeObjPosX, 0
+	mov cur_snakeObjPosY, 0
+	mov snakeMoveDirection, MOVE_RIGHT
+
 	ret
 initSnake ENDP
 ; == initSnake =============================
@@ -972,8 +968,39 @@ initSnake ENDP
 ; == updateSnake ===========================
 ; LABEL updateSnake
 ; -------------------------------------------
-updateSnake PROC USES ebx edx edi esi
-	; TODO updateSnake
+updateSnake PROC USES eax ebx edx edi esi
+	; TODO update Snake
+	.if snakeMoveDirection == MOVE_RIGHT
+		inc cur_snakeObjPosX
+	.endif
+
+	.if snakeMoveDirection == MOVE_LEFT
+		dec cur_snakeObjPosX
+	.endif
+
+	.if snakeMoveDirection == MOVE_UP
+		dec cur_snakeObjPosX
+	.endif
+
+	.if snakeMoveDirection == MOVE_DOWN
+		inc cur_snakeObjPosX
+	.endif
+
+	; hit boundary
+	mov cur_snakeObjPosX, ebx
+	.if ebx > canvasMaxX
+		mov snakeMoveDirection, MOVE_LEFT
+	.elseif ebx < canvasMinX
+		mov snakeMoveDirection, MOVE_RIGHT
+	.endif
+
+	mov cur_snakeObjPosY, ebx
+	.if ebx > canvasMaxY
+		mov snakeMoveDirection, MOVE_DOWN
+	.elseif ebx < canvasMinY
+		mov snakeMoveDirection, MOVE_UP
+	.endif
+
 	ret
 updateSnake ENDP
 ; == updateSnake ===========================
