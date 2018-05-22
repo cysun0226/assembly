@@ -115,10 +115,10 @@ windowWidth		DWORD 8000
 windowHeight	DWORD 8000
 
 scaleFactor	DWORD	128
-canvasMinX	DWORD -4000
-canvasMaxX	DWORD 4000
-canvasMinY	DWORD -4000
-canvasMaxY	DWORD 4000
+canvasMinX	SDWORD -4000
+canvasMaxX	SDWORD 4000
+canvasMinY	SDWORD -4000
+canvasMaxY	SDWORD 4000
 ;
 particleRangeMinX REAL8 0.0
 particleRangeMaxX REAL8 0.0
@@ -134,10 +134,13 @@ particleMaxSpeed DWORD 3
 mouseX		SDWORD 0	; mouse x-coordinate
 mouseY		SDWORD 0	; mouse y-coordinate
 
-maxNumSnakeObj	DWORD	1000
+maxNumSnakeObj	DWORD	1024
 numSnakeObj	DWORD	1
-snakeObjPosX SDWORD	1024 DUP(0)
-snakeObjPosY SDWORD	1024 DUP(0)
+snakeObjPosX DWORD	1024 DUP(0)
+snakeObjPosY DWORD	1024 DUP(0)
+snakeObjColorR DWORD	255, 1024 DUP(0)
+snakeObjColorG DWORD	0, 1024 DUP(0)
+snakeObjColorB DWORD	0, 1024 DUP(0)
 snakeLife	DWORD	0
 snakeLifeCycle	DWORD	25
 
@@ -152,8 +155,8 @@ Default_SnakeMaxSpeed	DWORD 200
 snakeMoveDirection	DWORD	MOVE_RIGHT
 
 flg_target	DWORD	0		; is the target set? true or false
-target_x	DWORD	?		; target x-coordinate
-target_y	DWORD	?		; target y-coordinate
+target_x	SDWORD	?		; target x-coordinate
+target_y	SDWORD	?		; target y-coordinate
 flgQuit		DWORD	0
 maxNumObjects	DWORD 512
 numObjects	DWORD	300
@@ -239,6 +242,14 @@ programState		BYTE	0
 ; LABEL my var
 IMAGE_HEIGHT	DWORD ?
 IMAGE_WIDTH	DWORD ?
+mouse_convert_scale DWORD 64
+targetPos_x DWORD ?
+targetPos_y DWORD ?
+arrive_target DWORD 0
+growing SDWORD 1
+random_color SDWORD -1
+set_rainbow
+
 
 .code
 
@@ -366,16 +377,18 @@ asm_GetMouseXY ENDP
 ;
 ; return flg_target
 ; -------------------------------------------
-asm_GetTargetXY PROC C USES eax ebx edi,
+asm_GetTargetXY PROC C USES ebx edi,
 	out_mouseX: PTR SDWORD, out_mouseY: PTR SDWORD
 
-	; DONE get target xy
+	; CHANGED get target xy
 	mov eax, target_x
 	mov ebx, out_mouseX
 	mov SDWORD PTR [ebx], eax
 	mov eax, target_y
 	mov ebx, out_mouseY
 	mov SDWORD PTR [ebx], eax
+
+	mov eax, flg_target
 
 	ret
 asm_GetTargetXY ENDP
@@ -416,6 +429,7 @@ asm_handleMousePassiveEvent PROC C USES eax ebx edx,
 	mWrite "y:"
 	call WriteDec
 	mWriteln " "
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	mov ebx, canvasMaxX
 	sub ebx, canvasMinX
@@ -515,6 +529,8 @@ asm_handleMouseEvent PROC C USES ebx,
 	jne exit0
 	;
 	mov flg_target, 1
+	mov arrive_target, 0
+
 	mov ebx, canvasMaxX
 	sub ebx, canvasMinX
 	mov eax, x
@@ -546,10 +562,48 @@ asm_handleMouseEvent ENDP
 ; -------------------------------------------
 asm_HandleKey PROC C,
 	key : DWORD
-	mov eax, key
-	;;;;;;;;;;;;;;;;;;;;;;;
+	; mov eax, key
 	; TODO Handle Key
-	;;;;;;;;;;;;;;;;;;;;;;;
+	.if key == 'w'
+		mov snakeMoveDirection, MOVE_UP
+		mov eax, 1
+		jmp L_QUIT_HANDLE_KEY
+	.endif
+
+	.if key == 's'
+		mov snakeMoveDirection, MOVE_DOWN
+		mov eax, 1
+		jmp L_QUIT_HANDLE_KEY
+	.endif
+
+	.if key == 'a'
+		mov snakeMoveDirection, MOVE_LEFT
+		mov eax, 1
+		jmp L_QUIT_HANDLE_KEY
+	.endif
+
+	.if key == 'd'
+		mov snakeMoveDirection, MOVE_RIGHT
+		mov eax, 1
+		jmp L_QUIT_HANDLE_KEY
+	.endif
+
+	.if key == ' '
+		mov eax, 1
+		neg growing
+		jmp L_QUIT_HANDLE_KEY
+	.endif
+
+	.if key == 'r'
+		mov eax, 1
+		neg random_color
+		jmp L_QUIT_HANDLE_KEY
+	.endif
+
+	mov eax, 0
+
+L_QUIT_HANDLE_KEY:
+
 	ret
 asm_HandleKey ENDP
 ; == asm_HandleKey ==========================
@@ -616,7 +670,7 @@ asm_SetWindowDimension ENDP
 ; -------------------------------------------
 asm_GetNumOfObjects PROC C
 	; CHANGED Get Num Of Objects
-	mov eax, numSnakeObj
+	mov eax, maxNumSnakeObj
 	ret
 asm_GetNumOfObjects ENDP
 ; == asm_GetNumOfObjects ====================
@@ -649,14 +703,58 @@ asm_GetObjectType		ENDP
 ; Return: the color three color components
 ;         red, green and blue.
 ; -------------------------------------------
-asm_GetObjectColor  PROC C USES ebx edi esi,
+asm_GetObjectColor  PROC C USES eax ebx edi esi,
 	r: PTR DWORD, g: PTR DWORD, b: PTR DWORD, objID: DWORD
 
-	; TODO Get Obj Color
-
+	; CHANGED Get Obj Color
+	mov esi, offset snakeObjColorR
+	mov eax, objID
+	mov ebx, 4
+	mul ebx
+	add esi, eax
+	mov eax, DWORD PTR [esi]
 	mov ebx, r
-	mov eax, 255
-	mov [ebx], eax
+	mov edx, numSnakeObj
+	dec edx
+	.if objID == edx
+		mov eax, 255
+	.endif
+	mov DWORD PTR [ebx], eax
+
+	mov esi, offset snakeObjColorG
+	mov eax, objID
+	mov ebx, 4
+	mul ebx
+	add esi, eax
+	mov eax, DWORD PTR [esi]
+	mov ebx, g
+	mov edx, numSnakeObj
+	dec edx
+	.if edx == objID
+		mov eax, 0
+	.endif
+	; .if random_color == -1
+	; 	mov eax, 0
+	; .endif
+	mov DWORD PTR [ebx], eax
+
+	mov esi, offset snakeObjColorB
+	mov eax, objID
+	mov ebx, 4
+	mul ebx
+	add esi, eax
+	mov eax, DWORD PTR [esi]
+	mov ebx, b
+	mov edx, numSnakeObj
+	dec edx
+	.if edx == objID
+		mov eax, 0
+	.endif
+	; .if random_color == -1
+	; 	mov eax, 0
+	; .endif
+	mov DWORD PTR [ebx], eax
+
 	ret
 asm_GetObjectColor ENDP
 ; == asm_GetObjectColor =====================
@@ -682,14 +780,28 @@ asm_ComputeRotationAngle ENDP
 ; int asm_ComputeObjPositionY(int x, int objID)
 ; Return the x-coordinate.
 ; -------------------------------------------
-asm_ComputeObjPositionX PROC C USES eax ebx ecx edx edi esi,
+asm_ComputeObjPositionX PROC C USES ebx ecx edx edi esi,
 	x: DWORD, objID: DWORD
-	; CHANGED Obj Position X
-	mov esi, offset snakeObjPosX
-	add esi, objID
-	mov eax, SDWORD PTR [esi]
+	; DONE Obj Position X
+	; call Crlf
+	; call Crlf
+	; mWrite "obj "
+	; mov eax, objID
+	; call WriteInt
 
-	mov eax, cur_snakeObjPosX
+	mov esi, offset snakeObjPosX
+	mov eax, objID
+	mov ebx, 4
+	mul ebx
+	add esi, eax
+	mov eax, DWORD PTR [esi]
+
+	; call Crlf
+	; mWrite "x = "
+	; call WriteInt
+	; mov eax, SDWORD PTR [esi]
+	; call Crlf
+
 	ret
 asm_ComputeObjPositionX ENDP
 ; == asm_ComputeObjPositionX ================
@@ -702,12 +814,13 @@ asm_ComputeObjPositionX ENDP
 ; -------------------------------------------
 asm_ComputeObjPositionY PROC C USES ebx esi edx,
 	y: DWORD, objID: DWORD
-	; CHANGED Obj Position Y
+	; DONE Obj Position Y
 	mov esi, offset snakeObjPosY
-	add esi, objID
-	mov eax, SDWORD PTR [esi]
-
-	mov eax, cur_snakeObjPosY
+	mov eax, objID
+	mov ebx, 4
+	mul ebx
+	add esi, eax
+	mov eax, DWORD PTR [esi]
 	ret
 asm_ComputeObjPositionY ENDP
 ; == asm_ComputeObjPositionY ================
@@ -950,16 +1063,33 @@ AskForInput_Initialization ENDP
 ; == AskForInput_Initialization ============
 
 ; == initSnake =============================
-; LABEL initSnake
+; LABEL init Snake
 ; -------------------------------------------
 initSnake PROC USES ebx edi esi
-	; CHANGED initSnake
+	; CHANGED init Snake
 
 	mov numSnakeObj, 1
 	mov snakeLife, 0
 	mov cur_snakeObjPosX, 0
 	mov cur_snakeObjPosY, 0
 	mov snakeMoveDirection, MOVE_RIGHT
+
+	mov eax, red
+	mov esi, offset objColor
+	mov DWORD PTR [esi], eax
+
+	mov eax, cur_snakeObjPosX
+	mov esi, offset snakeObjPosX
+	mov DWORD PTR [esi], eax
+
+	mov eax, cur_snakeObjPosY
+	mov esi, offset snakeObjPosY
+	mov DWORD PTR [esi], eax
+
+	mov flg_target, 0
+	mov arrive_target, 0
+	mov growing, 1
+	mov random_color, -1
 
 	ret
 initSnake ENDP
@@ -969,37 +1099,209 @@ initSnake ENDP
 ; LABEL updateSnake
 ; -------------------------------------------
 updateSnake PROC USES eax ebx edx edi esi
-	; TODO update Snake
+
+	.if arrive_target == 1
+		jmp L_SNAKE_UPDATE_QUIT
+	.endif
+
+	.if growing < 0
+		jmp L_SNAKE_UPDATE_QUIT
+	.endif
+
+	mov edx, snakeSpeed
+	mov ecx, 2
+	.if flg_target == 1
+		mov eax, cur_snakeObjPosX
+		mov ebx, target_x
+		.if eax < target_x
+			mov snakeMoveDirection, MOVE_RIGHT
+			sub ebx, eax
+			.if ebx < snakeSpeed
+				mov edx, ebx
+				dec ecx
+			.endif
+		.endif
+		mov eax, cur_snakeObjPosX
+		mov ebx, target_x
+		.if eax > target_x
+			mov snakeMoveDirection, MOVE_LEFT
+			sub eax, ebx
+			.if eax < snakeSpeed
+				mov edx, eax
+				dec ecx
+			.endif
+		.endif
+
+		mov eax, cur_snakeObjPosY
+		mov ebx, target_y
+		.if eax < target_y
+			mov snakeMoveDirection, MOVE_UP
+			sub ebx, eax
+			.if ebx < snakeSpeed
+				mov edx, ebx
+				dec ecx
+			.endif
+		.endif
+		mov eax, cur_snakeObjPosY
+		mov ebx, target_y
+		.if eax > target_y
+			mov snakeMoveDirection, MOVE_DOWN
+			sub eax, ebx
+			.if eax < snakeSpeed
+				mov edx, eax
+				dec ecx
+			.endif
+		.endif
+
+		mov ebx, cur_snakeObjPosX
+		.if ebx == target_x
+			dec ecx
+		.endif
+		mov ebx, cur_snakeObjPosY
+		.if ebx == target_y
+			dec ecx
+		.endif
+
+		.if ecx <= 0
+			mov flg_target, 0
+			mov arrive_target, 1
+		.endif
+
+	.endif
+
+
+
+	mov eax, edx ; speed
+
 	.if snakeMoveDirection == MOVE_RIGHT
-		inc cur_snakeObjPosX
+		add cur_snakeObjPosX, eax
 	.endif
 
 	.if snakeMoveDirection == MOVE_LEFT
-		dec cur_snakeObjPosX
+		sub cur_snakeObjPosX, eax
 	.endif
 
 	.if snakeMoveDirection == MOVE_UP
-		dec cur_snakeObjPosX
+		add cur_snakeObjPosY, eax
 	.endif
 
 	.if snakeMoveDirection == MOVE_DOWN
-		inc cur_snakeObjPosX
+		sub cur_snakeObjPosY, eax
 	.endif
 
-	; hit boundary
-	mov cur_snakeObjPosX, ebx
+	; CHANGED update Snake
+	mov eax, snakeLifeCycle
+	.if snakeLife < eax
+		inc snakeLife
+		jmp L_SNAKE_UPDATE_QUIT
+	.else
+		mov snakeLife, 0
+		.if numSnakeObj < 1024
+			inc numSnakeObj
+		.endif
+	.endif
+
+	; add current to array
+	mov ecx, numSnakeObj
+	dec ecx
+	mov eax, 4
+	mul ecx ; eax = 4*ecx
+
+	; snakeObjPosX
+	mov esi, offset snakeObjPosX
+	add esi, eax ; esi = snakeObjPosX + 4*ecx
+	mov edx, cur_snakeObjPosX
+	mov DWORD PTR [esi], edx
+
+	; call Crlf
+	; mWrite "cur snakeObjPosX[i]: "
+	; push eax
+	; mov eax, DWORD PTR [esi]
+	; call WriteInt
+	; call Crlf
+	; pop eax
+
+	; snakeObjPosY
+	mov esi, offset snakeObjPosY
+	add esi, eax ; esi = snakeObjPosX + 4*ecx
+	mov edx, cur_snakeObjPosY
+	mov DWORD PTR [esi], edx
+
+	mov ebx, eax
+
+	; objColor
+	mov esi, offset snakeObjColorR
+	add esi, ebx ; esi = objColor + 4*ecx
+	mov eax, 255; color
+	call RandomRange
+	.if random_color == -1
+		mov eax, 255
+	.endif
+	mov DWORD PTR [esi], eax
+
+	mov esi, offset snakeObjColorG
+	add esi, ebx ; esi = objColor + 4*ecx
+	mov eax, 255; color
+	call RandomRange
+	.if random_color == -1
+		mov eax, 0
+	.endif
+	mov DWORD PTR [esi], eax
+
+	mov esi, offset snakeObjColorB
+	add esi, ebx ; esi = objColor + 4*ecx
+	mov eax, 255; color
+	call RandomRange
+	.if random_color == -1
+		mov eax, 0
+	.endif
+	mov DWORD PTR [esi], eax
+
+;	DONE if hit boundary
+	mov ebx, cur_snakeObjPosX
+	mov edx, snakeLifeCycle
 	.if ebx > canvasMaxX
+		sub ebx, edx
+		mov cur_snakeObjPosX, ebx
 		mov snakeMoveDirection, MOVE_LEFT
-	.elseif ebx < canvasMinX
+	.endif
+	.if ebx < canvasMinX
+		add ebx, edx
+		mov cur_snakeObjPosX, ebx
 		mov snakeMoveDirection, MOVE_RIGHT
 	.endif
 
-	mov cur_snakeObjPosY, ebx
+	mov ebx, cur_snakeObjPosY
 	.if ebx > canvasMaxY
+		sub ebx, edx
+		mov cur_snakeObjPosY, ebx
 		mov snakeMoveDirection, MOVE_DOWN
-	.elseif ebx < canvasMinY
+	.endif
+	.if ebx < canvasMinY
+		add ebx, edx
+		mov cur_snakeObjPosY, ebx
 		mov snakeMoveDirection, MOVE_UP
 	.endif
+
+	; mWrite "numSnakeObj: "
+	; mov eax, numSnakeObj
+	; call WriteDec
+	; mWriteln " "
+	; mWrite "cur x: "
+	; mov eax, cur_snakeObjPosX
+	;
+	; call WriteDec
+	; mWriteln " "
+	; mWrite "cur y: "
+	; mov eax, cur_snakeObjPosY
+	; call WriteDec
+	; call Crlf
+	; call Crlf
+
+	; call dumpPosX
+	; call waitKey
+
+L_SNAKE_UPDATE_QUIT:
 
 	ret
 updateSnake ENDP
@@ -1056,7 +1358,65 @@ L_wait_anykey:
 waitKey ENDP
 ; == waitKey =====================
 
+; == dumpPosX ====================
+; DONE dump objPosX
+dumpPosX PROC USES eax ebx ecx esi
+	call Crlf
+	call Crlf
+	mWrite " --- objPosX --- "
+	call Crlf
+	call Crlf
 
+	mov ecx, numSnakeObj
+L_DUMP_POSX:
+	mWrite " objPosX["
+	mov eax, numSnakeObj
+	sub eax, ecx
+	call WriteDec
+	mWrite "] = "
+
+	mov ebx, 4
+	mul ebx
+	mov esi, offset snakeObjPosX
+	add esi, eax
+	mov eax, DWORD PTR [esi]
+	call WriteDec
+	call Crlf
+	loop L_DUMP_POSX
+
+	ret
+dumpPosX ENDP
+; == dumpPosX =====================
+
+; == dumpPosY =====================
+; DONE dump objPosY
+dumpPosY PROC USES eax ebx ecx esi
+	call Crlf
+	call Crlf
+	mWrite " --- objPosY --- "
+	call Crlf
+	call Crlf
+
+	mov ecx, numSnakeObj
+L_DUMP_POSY:
+	mWrite " objPosY["
+	mov eax, numSnakeObj
+	sub eax, ecx
+	call WriteDec
+	mWrite "] = "
+
+	mov ebx, 4
+	mul ebx
+	mov esi, offset snakeObjPosY
+	add esi, eax
+	mov eax, DWORD PTR [esi]
+	call WriteDec
+	call Crlf
+	loop L_DUMP_POSY
+
+	ret
+dumpPosY ENDP
+; == dumpPosY =====================
 
 
 END
