@@ -248,7 +248,37 @@ targetPos_y DWORD ?
 arrive_target DWORD 0
 growing SDWORD 1
 random_color SDWORD -1
-set_rainbow
+set_rainbow SDWORD -1
+set_clear SDWORD -1
+rainbow_id DWORD 0
+press_dir_key SDWORD -1
+RAINBOW_COLOR_R BYTE 255, 204, 255, 0,   0,   0,   76
+RAINBOW_COLOR_G BYTE 0,   102, 255, 255, 0,   0,   0
+RAINBOW_COLOR_B BYTE	0,   0,   0,   0,   255, 102, 153
+
+
+singleObjPosX DWORD	1024 DUP(0)
+singleObjPosY DWORD	1024 DUP(0)
+singleObjColorR DWORD	255, 1024 DUP(0)
+singleObjColorG DWORD	0, 1024 DUP(0)
+singleObjColorB DWORD	0, 1024 DUP(0)
+save_PosX DWORD ?
+save_PosY DWORD ?
+save_Direction DWORD ?
+save_snake_num DWORD ?
+save_flg_target SDWORD ?
+save_arrive_target SDWORD ?
+save_growing SDWORD ?
+save_target_x DWORD ?
+save_target_y DWORD ?
+
+color_buffer_R DWORD	1024 DUP(0)
+color_buffer_G DWORD	1024 DUP(0)
+color_buffer_B DWORD	1024 DUP(0)
+
+pos_buffer_x DWORD	1024 DUP(0)
+pos_buffer_y DWORD	1024 DUP(0)
+
 
 
 .code
@@ -564,27 +594,33 @@ asm_HandleKey PROC C,
 	key : DWORD
 	; mov eax, key
 	; TODO Handle Key
+	mov press_dir_key, -1
+
 	.if key == 'w'
 		mov snakeMoveDirection, MOVE_UP
 		mov eax, 1
+		mov press_dir_key, 1
 		jmp L_QUIT_HANDLE_KEY
 	.endif
 
 	.if key == 's'
 		mov snakeMoveDirection, MOVE_DOWN
 		mov eax, 1
+		mov press_dir_key, 1
 		jmp L_QUIT_HANDLE_KEY
 	.endif
 
 	.if key == 'a'
 		mov snakeMoveDirection, MOVE_LEFT
 		mov eax, 1
+		mov press_dir_key, 1
 		jmp L_QUIT_HANDLE_KEY
 	.endif
 
 	.if key == 'd'
 		mov snakeMoveDirection, MOVE_RIGHT
 		mov eax, 1
+		mov press_dir_key, 1
 		jmp L_QUIT_HANDLE_KEY
 	.endif
 
@@ -597,6 +633,36 @@ asm_HandleKey PROC C,
 	.if key == 'r'
 		mov eax, 1
 		neg random_color
+		jmp L_QUIT_HANDLE_KEY
+	.endif
+
+	.if key == 'p'
+		mov eax, 1
+		neg set_rainbow
+		jmp L_QUIT_HANDLE_KEY
+	.endif
+
+	.if key == 'c'
+		mov eax, 1
+		neg set_clear
+		jmp L_QUIT_HANDLE_KEY
+	.endif
+
+	.if key == 'v'
+		mov eax, 1
+		call save_spheres
+		call Crlf
+		mWrite "Save colors and position"
+		call Crlf
+		jmp L_QUIT_HANDLE_KEY
+	.endif
+
+	.if key == 'l'
+		mov eax, 1
+		call load_spheres
+		call Crlf
+		mWrite "Load colors and position"
+		call Crlf
 		jmp L_QUIT_HANDLE_KEY
 	.endif
 
@@ -719,6 +785,9 @@ asm_GetObjectColor  PROC C USES eax ebx edi esi,
 	.if objID == edx
 		mov eax, 255
 	.endif
+	.if set_clear == 1
+		mov eax, 255
+	.endif
 	mov DWORD PTR [ebx], eax
 
 	mov esi, offset snakeObjColorG
@@ -733,9 +802,9 @@ asm_GetObjectColor  PROC C USES eax ebx edi esi,
 	.if edx == objID
 		mov eax, 0
 	.endif
-	; .if random_color == -1
-	; 	mov eax, 0
-	; .endif
+	.if set_clear == 1
+		mov eax, 0
+	.endif
 	mov DWORD PTR [ebx], eax
 
 	mov esi, offset snakeObjColorB
@@ -750,9 +819,9 @@ asm_GetObjectColor  PROC C USES eax ebx edi esi,
 	.if edx == objID
 		mov eax, 0
 	.endif
-	; .if random_color == -1
-	; 	mov eax, 0
-	; .endif
+	.if set_clear == 1
+		mov eax, 0
+	.endif
 	mov DWORD PTR [ebx], eax
 
 	ret
@@ -795,6 +864,9 @@ asm_ComputeObjPositionX PROC C USES ebx ecx edx edi esi,
 	mul ebx
 	add esi, eax
 	mov eax, DWORD PTR [esi]
+	.if set_clear == 1
+		mov eax, cur_snakeObjPosX
+	.endif
 
 	; call Crlf
 	; mWrite "x = "
@@ -814,13 +886,16 @@ asm_ComputeObjPositionX ENDP
 ; -------------------------------------------
 asm_ComputeObjPositionY PROC C USES ebx esi edx,
 	y: DWORD, objID: DWORD
-	; DONE Obj Position Y
+	; CHANGED Obj Position Y
 	mov esi, offset snakeObjPosY
 	mov eax, objID
 	mov ebx, 4
 	mul ebx
 	add esi, eax
 	mov eax, DWORD PTR [esi]
+	.if set_clear == 1
+		mov eax, cur_snakeObjPosY
+	.endif
 	ret
 asm_ComputeObjPositionY ENDP
 ; == asm_ComputeObjPositionY ================
@@ -1090,6 +1165,11 @@ initSnake PROC USES ebx edi esi
 	mov arrive_target, 0
 	mov growing, 1
 	mov random_color, -1
+	mov rainbow_id, 0
+	mov set_rainbow, -1
+	mov set_clear, -1
+	mov press_dir_key, -1
+
 
 	ret
 initSnake ENDP
@@ -1099,6 +1179,12 @@ initSnake ENDP
 ; LABEL updateSnake
 ; -------------------------------------------
 updateSnake PROC USES eax ebx edx edi esi
+
+; CHANGED update Snake
+	.if press_dir_key == 1
+		mov edx, snakeSpeed
+		jmp L_CONTROL_DIR
+	.endif
 
 	.if arrive_target == 1
 		jmp L_SNAKE_UPDATE_QUIT
@@ -1169,8 +1255,7 @@ updateSnake PROC USES eax ebx edx edi esi
 
 	.endif
 
-
-
+L_CONTROL_DIR:
 	mov eax, edx ; speed
 
 	.if snakeMoveDirection == MOVE_RIGHT
@@ -1189,16 +1274,28 @@ updateSnake PROC USES eax ebx edx edi esi
 		sub cur_snakeObjPosY, eax
 	.endif
 
-	; CHANGED update Snake
 	mov eax, snakeLifeCycle
 	.if snakeLife < eax
 		inc snakeLife
 		jmp L_SNAKE_UPDATE_QUIT
 	.else
 		mov snakeLife, 0
+		.if set_clear == 1
+			mov esi, offset singleObjPosX
+			mov DWORD PTR [esi], edx
+			mov esi, offset singleObjPosY
+			mov DWORD PTR [esi], edx
+			jmp L_CHECK_BOUND
+		.endif
 		.if numSnakeObj < 1024
 			inc numSnakeObj
 		.endif
+	.endif
+
+	.if rainbow_id < 6
+		inc rainbow_id
+	.else
+		mov rainbow_id, 0
 	.endif
 
 	; add current to array
@@ -1237,6 +1334,12 @@ updateSnake PROC USES eax ebx edx edi esi
 	.if random_color == -1
 		mov eax, 255
 	.endif
+	.if set_rainbow == 1
+		mov edx, offset RAINBOW_COLOR_R
+		add edx, rainbow_id
+		mov eax, 0
+		mov al, BYTE PTR [edx]
+	.endif
 	mov DWORD PTR [esi], eax
 
 	mov esi, offset snakeObjColorG
@@ -1245,6 +1348,12 @@ updateSnake PROC USES eax ebx edx edi esi
 	call RandomRange
 	.if random_color == -1
 		mov eax, 0
+	.endif
+	.if set_rainbow == 1
+		mov edx, offset RAINBOW_COLOR_G
+		add edx, rainbow_id
+		mov eax, 0
+		mov al, BYTE PTR [edx]
 	.endif
 	mov DWORD PTR [esi], eax
 
@@ -1255,9 +1364,16 @@ updateSnake PROC USES eax ebx edx edi esi
 	.if random_color == -1
 		mov eax, 0
 	.endif
+	.if set_rainbow == 1
+		mov edx, offset RAINBOW_COLOR_B
+		add edx, rainbow_id
+		mov eax, 0
+		mov al, BYTE PTR [edx]
+	.endif
 	mov DWORD PTR [esi], eax
 
 ;	DONE if hit boundary
+L_CHECK_BOUND:
 	mov ebx, cur_snakeObjPosX
 	mov edx, snakeLifeCycle
 	.if ebx > canvasMaxX
@@ -1302,6 +1418,7 @@ updateSnake PROC USES eax ebx edx edi esi
 	; call waitKey
 
 L_SNAKE_UPDATE_QUIT:
+	mov press_dir_key, -1
 
 	ret
 updateSnake ENDP
@@ -1418,5 +1535,147 @@ L_DUMP_POSY:
 dumpPosY ENDP
 ; == dumpPosY =====================
 
+
+; == save_spheres =====================
+; TODO save spheres
+save_spheres PROC USES eax ebx ecx esi
+	mov ebx, cur_snakeObjPosX
+	mov save_PosX, ebx
+	mov ebx, cur_snakeObjPosY
+	mov save_PosY, ebx
+	mov ebx, snakeMoveDirection
+	mov save_Direction, ebx
+	mov ebx, numSnakeObj
+	mov save_snake_num, ebx
+	mov ebx, flg_target
+	mov save_flg_target, ebx
+	mov ebx, arrive_target
+	mov save_arrive_target, ebx
+	mov ebx, growing
+	mov save_growing, ebx
+	mov ebx, target_x
+	mov save_target_x, ebx
+	mov ebx, target_y
+	mov save_target_y, ebx
+
+
+	mov ecx, maxNumSnakeObj
+	dec ecx
+L_COPY_COLORS:
+	mov eax, ecx
+	mov ebx, 4
+	mul ebx ; eax = ecx*4
+
+	mov esi, offset snakeObjPosX
+	add esi, eax
+	mov ebx, DWORD PTR [esi]
+	mov esi, offset pos_buffer_x
+	add esi, eax
+	mov DWORD PTR [esi], ebx
+
+	mov esi, offset snakeObjPosY
+	add esi, eax
+	mov ebx, DWORD PTR [esi]
+	mov esi, offset pos_buffer_y
+	add esi, eax
+	mov DWORD PTR [esi], ebx
+
+	mov esi, offset snakeObjColorR
+	add esi, eax
+	mov ebx, DWORD PTR [esi]
+	mov esi, offset color_buffer_R
+	add esi, eax
+	mov DWORD PTR [esi], ebx
+
+	mov esi, offset snakeObjColorG
+	add esi, eax
+	mov ebx, DWORD PTR [esi]
+	mov esi, offset color_buffer_G
+	add esi, eax
+	mov DWORD PTR [esi], ebx
+
+	mov esi, offset snakeObjColorB
+	add esi, eax
+	mov ebx, DWORD PTR [esi]
+	mov esi, offset color_buffer_B
+	add esi, eax
+	mov DWORD PTR [esi], ebx
+
+	loop L_COPY_COLORS
+
+	ret
+save_spheres ENDP
+; == save_spheres =====================
+
+; == load_spheres =====================
+; TODO load spheres
+load_spheres PROC USES eax ebx ecx esi
+	mov ebx, save_PosX
+	mov cur_snakeObjPosX, ebx
+	mov ebx, save_PosY
+	mov cur_snakeObjPosY, ebx
+	mov ebx, save_Direction
+	mov snakeMoveDirection, ebx
+	mov ebx, save_snake_num
+	mov numSnakeObj, ebx
+
+	mov ebx, save_flg_target
+	mov flg_target, ebx
+	mov ebx, save_arrive_target
+	mov arrive_target, ebx
+	mov ebx, save_growing
+	mov growing, ebx
+	mov ebx, save_target_x
+	mov target_x, ebx
+	mov ebx, save_target_y
+	mov target_y, ebx
+
+	mov ecx, maxNumSnakeObj
+	dec ecx
+L_LOAD_COLORS:
+	mov eax, ecx
+	mov ebx, 4
+	mul ebx ; eax = ecx*4
+
+	mov esi, offset pos_buffer_x
+	add esi, eax
+	mov ebx, DWORD PTR [esi]
+	mov esi, offset snakeObjPosX
+	add esi, eax
+	mov DWORD PTR [esi], ebx
+
+	mov esi, offset pos_buffer_y
+	add esi, eax
+	mov ebx, DWORD PTR [esi]
+	mov esi, offset snakeObjPosY
+	add esi, eax
+	mov DWORD PTR [esi], ebx
+
+	mov esi, offset color_buffer_R
+	add esi, eax
+	mov ebx, DWORD PTR [esi]
+	mov esi, offset snakeObjColorR
+	add esi, eax
+	mov DWORD PTR [esi], ebx
+
+	mov esi, offset color_buffer_G
+	add esi, eax
+	mov ebx, DWORD PTR [esi]
+	mov esi, offset snakeObjColorG
+	add esi, eax
+	mov DWORD PTR [esi], ebx
+
+	mov esi, offset color_buffer_B
+	add esi, eax
+	mov ebx, DWORD PTR [esi]
+	mov esi, offset snakeObjColorB
+	add esi, eax
+	mov DWORD PTR [esi], ebx
+
+	loop L_LOAD_COLORS
+
+	ret
+load_spheres ENDP
+; == load_spheres =====================
 
 END
