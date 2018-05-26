@@ -110,11 +110,14 @@ main PROC
   mWrite " > Press space bar to switch the bit map"
   call Crlf
   mWrite " > Press q or esc to quit"
-
+	
+L_start_game:
   call generate_map
   call draw_map
-  call waitKey
-	; call waitKey
+  movzx ebx, FRAME_WIDTH
+  movzx ecx, FRAME_HEIGHT
+  INVOKE draw_frame, 0, 3, ebx, ecx
+  call play_game
 
 	; quit
 	call Clrscr
@@ -449,6 +452,8 @@ draw_frame ENDP
 ; LABEL draw player
 ; -------------------------------------------
 draw_player PROC USES eax ebx ecx edx
+  mov eax, yellow
+  call set_background_color
   mov dl, player_x
   mov dh, player_y
   call Gotoxy
@@ -462,6 +467,8 @@ draw_player ENDP
 ; LABEL draw AI
 ; -------------------------------------------
 draw_AI PROC USES eax ebx ecx edx
+  mov eax, red
+  call set_background_color
   mov dl, AI_x
   mov dh, AI_y
   call Gotoxy
@@ -489,35 +496,49 @@ L_MAP_INIT:
   mov BYTE PTR [ebx], 0
   jmp L_MAP_INIT_NEXT
 L_MAP_INIT_BLACK:
-  mov BYTE PTR [ebx], 1
+  mov eax, 5
+  call RandomRange
+  .if eax < 4
+    mov BYTE PTR [ebx], 1
+  .else
+    mov BYTE PTR [ebx], 0
+  .endif
 L_MAP_INIT_NEXT:
   loop L_MAP_INIT
 
+  mov ecx, 20
+L_GENERATE_TUNNEL:
+  ; push ecx
+  test ecx, 1
+  je L_GENERATE_TUNNEL_QUIT
+  mov eax, 60
+  mul ecx ; eax = 60*r
+  mov ebx, eax
+  mov edx, offset game_map
 
-;   mov dh, 3
-;   mov dl, 0
-;   mov ecx, 30
-; L_GENERATE_MAP:
-;   mov eax, blue
-;   call set_background_color
-;   INVOKE draw_straight, dl, 4, 20
-;   add dl, 2
-;   loop L_GENERATE_MAP
-;
-;   mov eax, yellow
-;   call set_background_color
-;   call draw_player
-;
-;   mov eax, red
-;   call set_background_color
-;   call draw_AI
-;
-;   call restore_color
+  mov eax, 20
+  call RandomRange
+  ; map[r*width+c]
+  add edx, eax
+  mov BYTE PTR [edx], 0
+
+  L_GENERATE_TUNNEL_QUIT:
+  ; L_GENERATE_TUNNEL_ROW:
+  ;
+  ;   mov BYTE PTR [eax], 1
+  ;   add eax, 60
+  ;   loop L_GENERATE_TUNNEL_ROW
+  ; pop ecx
+  loop L_GENERATE_TUNNEL
+
   ret
 generate_map ENDP
 ; == generate map ============================
 
 ; == draw map ================================
+; LABEL draw map
+; function: draw map
+; -------------------------------------------
 draw_map PROC USES eax ebx ecx edx
   mov dh, 4
   mov dl, 0
@@ -555,6 +576,16 @@ L_DRAW_BITMAP:
   ret
 draw_map ENDP
 ; == draw map ================================
+
+; == play game ================================
+; LABEL play game
+; ---------------------------------------------
+play_game PROC
+  call draw_AI
+  call draw_player
+  call get_key
+  ret
+play_game ENDP
 
 ; == restore color ==========================
 restore_color PROC
