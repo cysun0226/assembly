@@ -61,11 +61,14 @@ bitmap_y DWORD ?
 bitmap_old_x DWORD ?
 bitmap_old_y DWORD ?
 
+; LABEL start coordinate
 player_x BYTE 59
 player_y BYTE 23
 
 AI_x BYTE 59
 AI_y BYTE 4
+
+reset BYTE 0
 
 tunnel DWORD 29 dup(?)
 
@@ -105,22 +108,31 @@ main PROC
 	INVOKE draw_frame, 0, 3, ebx, ecx
   call Crlf
   call Crlf
-  mWrite " > Press w a s d to move the bit map"
+  mWrite " > Press w a s d to move"
   call Crlf
-  mWrite " > Press space bar to switch the bit map"
+  mWrite " > Press space bar to pause/resume"
   call Crlf
-  mWrite " > Press q or esc to quit"
-	
-L_start_game:
+  mWrite " > Press r to reset the game and regenerate the map "
+  call Crlf
+  mWrite " > Press q to quit"
+
+; LABEL start game
+L_START_GAME:
+  mov reset, 0
   call generate_map
-  call draw_map
+  call dump_map
   movzx ebx, FRAME_WIDTH
   movzx ecx, FRAME_HEIGHT
   INVOKE draw_frame, 0, 3, ebx, ecx
+  call draw_AI
+  call draw_player
   call play_game
+  .if reset == 1
+    jmp L_START_GAME
+  .endif
 
 	; quit
-	call Clrscr
+	call Crlf
 	mov edx, offset str_quit_msg
 	INVOKE WriteString
 	call get_key
@@ -128,177 +140,6 @@ L_start_game:
 	exit
 main ENDP
 ; == main =====================
-
-; == play_bitmap =====================
-; NOTE play bitmap
-play_bitmap PROC
-  ; show bitmap in the middle
-  mov ebx, 38
-  mov edx, 17
-  mov ecx, bitmap_type
-  INVOKE draw_bitmap, ebx, edx, ecx
-
-L_bitmap_moving:
-  push ebx
-  push edx
-	call get_key
-	; no key is pressed
-  pop edx
-  pop ebx
-
-  INVOKE erase_bitmap, ebx, edx
-
-	.if al == 'w'
-  .if edx > 4 ; in boundary
-	dec edx
-	.endif
-
-	.elseif al == 's'
-  .if edx < 24
-  inc edx
-  .endif
-
-  .elseif al == 'a'
-  .if ebx > 1
-  dec ebx
-  .endif
-
-  .elseif al == 'd'
-  .if ebx < 75
-  inc ebx
-  .endif
-
-  .elseif al == 'b'
-  mov bitmap_type, 0
-  mov ecx, 0
-
-  .elseif al == ' '
-  mov ecx, 1
-  sub ecx, bitmap_type
-  mov bitmap_type, ecx
-
-	.elseif al == 27 ; esc
-	jmp L_bitmap_quit
-
-  .elseif al == 'q'
-	jmp L_bitmap_quit
-
-  .endif
-
-  INVOKE draw_bitmap, ebx, edx, ecx
-  jmp L_bitmap_moving
-
-L_bitmap_quit:
-  call restore_color
-	ret
-play_bitmap ENDP
-; == play_bitmap =====================
-
-; == draw_bitmap =====================
-; LABEL draw bitmap
-; function: draw_bitmap(int x, int y, int map)
-; -------------------------------------------
-draw_bitmap PROC USES eax ebx ecx edx,
-	x_start: DWORD,
-	y_start: DWORD,
-	map: DWORD
-
-  push eax
-  push ebx
-  push ecx
-  push edx
-
-  mov eax, y_start
-  mov tmp_casting, eax
-	mov dh, BYTE PTR tmp_casting
-  mov eax, x_start
-  mov tmp_casting, eax
-	mov dl, BYTE PTR tmp_casting
-  call Gotoxy
-
-  .if map == 0
-  mov esi, offset BITMAP1
-  mov bitmap_color, yellow
-  .else
-  mov esi, offset BITMAP2
-  mov bitmap_color, blue
-  .endif
-
-  mov ecx, 3
-L_DRAW_BITMAP:
-  push ecx
-  mov ecx, 5
-L_DRAW_BITMAP_ROW:
-  mov bl, [esi]
-  .if bl == 1
-  movzx eax, bitmap_color
-  call set_background_color
-  .else
-  call restore_color
-  .endif
-  inc esi
-  mov al, ' '
-  INVOKE WriteChar
-  loop L_DRAW_BITMAP_ROW
-  pop ecx
-  inc dh
-  call Gotoxy
-  loop L_DRAW_BITMAP
-  call restore_color
-
-  pop edx
-  pop ecx
-  pop ebx
-  pop eax
-  ret
-draw_bitmap ENDP
-
-; == draw_bitmap =====================
-
-; == erase_bitmap =====================
-; LABEL erase bitmap
-; function: erase_bitmap(int x, int y)
-; -------------------------------------------
-erase_bitmap PROC USES eax ebx ecx edx,
-	x_start: DWORD,
-	y_start: DWORD
-
-  push eax
-  push ebx
-  push ecx
-  push edx
-
-  mov eax, y_start
-  mov tmp_casting, eax
-	mov dh, BYTE PTR tmp_casting
-  mov eax, x_start
-  mov tmp_casting, eax
-	mov dl, BYTE PTR tmp_casting
-  call Gotoxy
-  call restore_color
-
-  mov ecx, 3
-L_ERASE_BITMAP:
-  push ecx
-  mov ecx, 5
-L_ERASE_BITMAP_ROW:
-  mov al, ' '
-  INVOKE WriteChar
-  loop L_ERASE_BITMAP_ROW
-  pop ecx
-  inc dh
-  call Gotoxy
-  loop L_ERASE_BITMAP
-
-  pop edx
-  pop ecx
-  pop ebx
-  pop eax
-  ret
-erase_bitmap ENDP
-
-; == erase_bitmap =====================
-
 
 ; == waitKey =====================
 waitKey PROC
@@ -463,6 +304,20 @@ draw_player PROC USES eax ebx ecx edx
 draw_player ENDP
 ; == draw_player ============================
 
+; == erase_player ============================
+; LABEL erase player
+; -------------------------------------------
+erase_player PROC USES eax ebx ecx edx
+  call restore_color
+  mov dl, player_x
+  mov dh, player_y
+  call Gotoxy
+  mov al, ' '
+  call WriteChar
+  ret
+erase_player ENDP
+; == erase_player ============================
+
 ; == draw_AI ============================
 ; LABEL draw AI
 ; -------------------------------------------
@@ -476,8 +331,21 @@ draw_AI PROC USES eax ebx ecx edx
   call WriteChar
   ret
 draw_AI ENDP
-; == draw_player ============================
+; == draw_AI ================================
 
+; == erase_AI ===============================
+; LABEL erase AI
+; -------------------------------------------
+erase_AI PROC USES eax ebx ecx edx
+  call restore_color
+  mov dl, AI_x
+  mov dh, AI_y
+  call Gotoxy
+  mov al, ' '
+  call WriteChar
+  ret
+erase_AI ENDP
+; == erase_AI ================================
 
 ; == generate map ============================
 ; LABEL generate map
@@ -492,7 +360,7 @@ L_MAP_INIT:
   add ebx, eax
 
   test ecx, 1
-  je L_MAP_INIT_BLACK
+  jne L_MAP_INIT_BLACK
   mov BYTE PTR [ebx], 0
   jmp L_MAP_INIT_NEXT
 L_MAP_INIT_BLACK:
@@ -510,7 +378,7 @@ L_MAP_INIT_NEXT:
 L_GENERATE_TUNNEL:
   ; push ecx
   test ecx, 1
-  je L_GENERATE_TUNNEL_QUIT
+  jne L_GENERATE_TUNNEL_QUIT
   mov eax, 60
   mul ecx ; eax = 60*r
   mov ebx, eax
@@ -521,15 +389,12 @@ L_GENERATE_TUNNEL:
   ; map[r*width+c]
   add edx, eax
   mov BYTE PTR [edx], 0
-
   L_GENERATE_TUNNEL_QUIT:
-  ; L_GENERATE_TUNNEL_ROW:
-  ;
-  ;   mov BYTE PTR [eax], 1
-  ;   add eax, 60
-  ;   loop L_GENERATE_TUNNEL_ROW
-  ; pop ecx
   loop L_GENERATE_TUNNEL
+
+  mov ecx, 60
+L_GENERATE_BOUNDARY:
+  loop L_GENERATE_BOUNDARY
 
   ret
 generate_map ENDP
@@ -540,17 +405,16 @@ generate_map ENDP
 ; function: draw map
 ; -------------------------------------------
 draw_map PROC USES eax ebx ecx edx
-  mov dh, 4
+  mov dh, 3
   mov dl, 0
   call Gotoxy
 
   mov ecx, 1200
-L_DRAW_BITMAP:
-  push ecx
-  mov ebx, offset game_map
-  mov eax, ecx
-  shl eax, 1
-  add ebx, eax
+  mov esi, offset game_map
+L_DRAW_MAP:
+  mov ebx, 1200
+  sub ebx, ecx
+  add ebx, esi
 
   mov dl, [ebx]
   .if dl == 0
@@ -566,12 +430,10 @@ L_DRAW_BITMAP:
   mov eax, ecx
   mov ebx, 60
   div ebx
-  pop ecx
-  .if edx == 1
+  .if edx == 0
   call Crlf
   .endif
-
-  loop L_DRAW_BITMAP
+  loop L_DRAW_MAP
 
   ret
 draw_map ENDP
@@ -581,11 +443,177 @@ draw_map ENDP
 ; LABEL play game
 ; ---------------------------------------------
 play_game PROC
-  call draw_AI
+L_PLAY_GAME:
+  .if player_x == 1
+    call restore_color
+    call Clrscr
+    mWrite "You win!"
+    jmp L_GAME_OVER
+  .endif
+
+	call ReadKey
+	jz L_NO_KEY_INPUT
+
+  ; erase old player
+  call erase_player
+
+  .if al == 'r'
+    mov reset, 1
+    jmp L_GAME_OVER
+  .endif
+
+  .if al == 'w'
+    push eax
+		movsx ebx, player_y
+    sub ebx, 4
+    movsx ecx, player_x
+    ; check
+    ; boundary
+    .if ebx == 0
+      jmp L_W_QUIT
+    .endif
+    ; map[x+y*w]
+    mov eax, 60
+    mul ebx ; eax = y*w
+    add eax, ecx ; eax = x + y*w
+    mov ebx, offset game_map
+    add eax, ebx
+    mov dl, BYTE PTR [eax]
+    .if dl == 0
+      mov dh, player_y
+      dec dh
+      mov player_y, dh
+    .endif
+    L_W_QUIT:
+    pop eax
+	.endif
+
+  .if al == 's'
+  push eax
+  movsx ebx, player_y
+  sub ebx, 4
+  movsx ecx, player_x
+  inc ebx
+  ; check
+  .if ebx > 23
+    jmp L_S_QUIT
+  .endif
+
+  ; map[x+y*w]
+  mov eax, 60
+  mul ebx ; eax = y*w
+  add eax, ecx ; eax = x + y*w
+  add eax, offset game_map
+  mov dl, BYTE PTR [eax]
+  .if dl == 0
+    mov dh, player_y
+    inc dh
+    mov player_y, dh
+  .endif
+  pop eax
+	.endif
+
+  .if al == 'a'
+    push eax
+    movsx ebx, player_y
+    sub ebx, 4
+    movsx ecx, player_x
+    dec ecx
+    ; check
+    ; map[x+y*w]
+    mov eax, 60
+    mul ebx ; eax = y*w
+    add eax, ecx ; eax = x + y*w
+    add eax, offset game_map
+    mov dl, BYTE PTR [eax]
+    .if dl == 0
+      mov dh, player_x
+      dec dh
+      mov player_x, dh
+    .endif
+    L_S_QUIT:
+    pop eax
+	.endif
+
+  .if al == 'd'
+    push eax
+    movsx ebx, player_y
+    sub ebx, 4
+    movsx ecx, player_x
+    inc ecx
+    ; check
+    .if ecx > 59
+      jmp L_D_QUIT
+    .endif
+    ; map[x+y*w]
+    mov eax, 60
+    mul ebx ; eax = y*w
+    add eax, ecx ; eax = x + y*w
+    add eax, offset game_map
+    mov dl, BYTE PTR [eax]
+    .if dl == 0
+      mov dh, player_x
+      inc dh
+      mov player_x, dh
+    .endif
+    L_D_QUIT:
+    pop eax
+	.endif
+
   call draw_player
-  call get_key
+
+L_NO_KEY_INPUT:
+  mov eax, 50
+	call Delay
+  jmp L_PLAY_GAME
+
+L_GAME_OVER:
   ret
 play_game ENDP
+; == play game =============================
+
+; == dump map ==============================
+; LABEL dump map
+; ------------------------------------------
+dump_map PROC
+  call Clrscr
+  mov dh, 3
+  mov dl, 0
+  call Gotoxy
+  mov ecx, 1200
+  mov esi, offset game_map
+L_DUMP_MAP:
+  push ecx
+  mov ebx, 1200
+  sub ebx, ecx
+  add ebx, esi
+
+  mov dl, [ebx]
+  .if dl == 0
+    mov eax, black
+  .else
+    mov eax, blue
+  .endif
+  call set_background_color
+  call WriteChar
+
+  mov edx, 0
+  mov eax, ecx
+  mov ebx, 60
+  div ebx
+  pop ecx
+  .if edx == 0
+  call Crlf
+  mov al, '1'
+  call WriteChar
+  .endif
+
+loop L_DUMP_MAP
+
+  ret
+dump_map ENDP
+; == dump map ==============================
+
 
 ; == restore color ==========================
 restore_color PROC
