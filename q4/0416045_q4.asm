@@ -67,8 +67,13 @@ player_y BYTE 23
 
 AI_x BYTE 59
 AI_y BYTE 4
+AI_down BYTE 0
+
+player_win_msg BYTE " You win!", 0
+AI_win_msg BYTE " AI win!", 0
 
 reset BYTE 0
+game_over BYTE 0
 
 tunnel DWORD 29 dup(?)
 
@@ -82,8 +87,6 @@ BITMAP2 BYTE 1, 1, 1, 1, 1
           BYTE 0, 1, 0, 1, 0
           BYTE 1, 1, 1, 1, 1
 
-game_map BYTE 1200 dup(0)
-
 ; quit message
 str_quit_msg BYTE 10, 13, 10, 13,
 " Thanks for playing this system.", 10, 13, 10, 13,
@@ -93,6 +96,8 @@ str_quit_msg BYTE 10, 13, 10, 13,
 " I am learning assembly programming.", 10, 13,
 " Please contact me at cysun0226@gmail.com", 10, 13, 10, 13,
 " (Press anykey to quit.)", 0
+
+game_map BYTE 3000 dup(0)
 
 
 ; == main =====================
@@ -112,13 +117,18 @@ main PROC
   call Crlf
   mWrite " > Press space bar to pause/resume"
   call Crlf
-  mWrite " > Press r to reset the game and regenerate the map "
+  mWrite " > Press r to restart the game"
   call Crlf
   mWrite " > Press q to quit"
 
 ; LABEL start game
 L_START_GAME:
   mov reset, 0
+  mov player_x, 59
+  mov player_y, 23
+  mov AI_x, 59
+  mov AI_y, 4
+  mov AI_down, 0
   call generate_map
   call dump_map
   movzx ebx, FRAME_WIDTH
@@ -132,7 +142,8 @@ L_START_GAME:
   .endif
 
 	; quit
-	call Crlf
+	call Clrscr
+  call restore_color
 	mov edx, offset str_quit_msg
 	INVOKE WriteString
 	call get_key
@@ -352,6 +363,7 @@ erase_AI ENDP
 ; function: generate_map
 ; -------------------------------------------
 generate_map PROC
+  call Randomize
   mov ecx, 1200
 L_MAP_INIT:
   mov ebx, offset game_map
@@ -378,14 +390,15 @@ L_MAP_INIT_NEXT:
 L_GENERATE_TUNNEL:
   ; push ecx
   test ecx, 1
-  jne L_GENERATE_TUNNEL_QUIT
+  je L_GENERATE_TUNNEL_QUIT
   mov eax, 60
   mul ecx ; eax = 60*r
   mov ebx, eax
   mov edx, offset game_map
 
-  mov eax, 20
+  mov eax, 19
   call RandomRange
+  inc eax
   ; map[r*width+c]
   add edx, eax
   mov BYTE PTR [edx], 0
@@ -444,21 +457,48 @@ draw_map ENDP
 ; ---------------------------------------------
 play_game PROC
 L_PLAY_GAME:
-  .if player_x == 1
-    call restore_color
-    call Clrscr
-    mWrite "You win!"
-    jmp L_GAME_OVER
+  .if game_over == 1
+    jmp L_READ_KEY
   .endif
 
+  .if player_x == 1
+    mov eax, 11100000b ; yellow background, white text
+    call SetTextColor
+    mov dl, 25
+    mov dh, 3
+    call Gotoxy
+    mov edx, offset player_win_msg
+    INVOKE WriteString
+    call restore_color
+    mov game_over, 1
+  .endif
+
+  .if AI_x == 1
+    mov eax, 11100000b ; yellow background, white text
+    call SetTextColor
+    mov dl, 27
+    mov dh, 3
+    call Gotoxy
+    mov edx, offset AI_win_msg
+    INVOKE WriteString
+    call restore_color
+    mov game_over, 1
+  .endif
+
+L_READ_KEY:
 	call ReadKey
 	jz L_NO_KEY_INPUT
 
   ; erase old player
   call erase_player
 
+  .if al == 'q'
+    jmp L_GAME_OVER
+  .endif
+
   .if al == 'r'
     mov reset, 1
+    mov game_over, 0
     jmp L_GAME_OVER
   .endif
 
@@ -495,7 +535,7 @@ L_PLAY_GAME:
   movsx ecx, player_x
   inc ebx
   ; check
-  .if ebx > 23
+  .if ebx > 19
     jmp L_S_QUIT
   .endif
 
@@ -510,6 +550,7 @@ L_PLAY_GAME:
     inc dh
     mov player_y, dh
   .endif
+  L_S_QUIT:
   pop eax
 	.endif
 
@@ -520,6 +561,9 @@ L_PLAY_GAME:
     movsx ecx, player_x
     dec ecx
     ; check
+    .if ecx == 0
+      jmp L_A_QUIT
+    .endif
     ; map[x+y*w]
     mov eax, 60
     mul ebx ; eax = y*w
@@ -531,7 +575,7 @@ L_PLAY_GAME:
       dec dh
       mov player_x, dh
     .endif
-    L_S_QUIT:
+    L_A_QUIT:
     pop eax
 	.endif
 
@@ -562,9 +606,60 @@ L_PLAY_GAME:
 
   call draw_player
 
-L_NO_KEY_INPUT:
   mov eax, 50
+  call Delay
+  jmp L_PLAY_GAME
+
+L_NO_KEY_INPUT:
+  .if game_over == 1
+    mov eax, 50
+    call Delay
+    jmp L_READ_KEY
+  .endif
+
+  mov eax, 150
 	call Delay
+  call erase_AI
+
+  ; move AI
+  movsx ebx, AI_y
+  sub ebx, 4
+  movsx ecx, AI_x
+  dec ecx
+  push ebx
+  ; check left
+  mov eax, 60
+  mul ebx ; eax = y*w
+  add eax, ecx ; eax = x + y*w
+  mov ebx, offset game_map
+  add eax, ebx
+  mov dl, BYTE PTR [eax]
+  pop ebx
+  .if dl == 0
+    mov AI_down, 0
+    mov dh, AI_x
+    dec dh
+    mov AI_x, dh
+  .else
+    .if AI_down != 1
+      .if ebx != 0
+        mov dh, AI_y
+        dec dh
+        mov AI_y, dh
+      .else
+        mov AI_down, 1
+        mov dh, AI_y
+        inc dh
+        mov AI_y, dh
+      .endif
+    .else
+      mov dh, AI_y
+      inc dh
+      mov AI_y, dh
+    .endif
+  .endif
+  call draw_AI
+
   jmp L_PLAY_GAME
 
 L_GAME_OVER:
@@ -576,7 +671,6 @@ play_game ENDP
 ; LABEL dump map
 ; ------------------------------------------
 dump_map PROC
-  call Clrscr
   mov dh, 3
   mov dl, 0
   call Gotoxy
