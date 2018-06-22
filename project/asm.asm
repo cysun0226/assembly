@@ -26,6 +26,9 @@ invisibleDigitY  TEXTEQU %(-100000)
 
 c_updatePositionsOfAllObjects PROTO C
 
+
+
+; LABEL .data
 .data
 colors BYTE 01ch
 colorOriginal BYTE 01ch
@@ -35,7 +38,7 @@ MYINFO	BYTE " Name: Chia-Yu, Sun;  ID: 0416045", 0
 OpenMsgDelay	DWORD	25
 EnterStageDelay	DWORD	50
 
-MyMsg BYTE " === Final Project for Assembly Language === ",0dh, 0ah
+MyMsg BYTE 0dh, 0ah, " === Final Project for Assembly Language === ",0dh, 0ah, 0dh, 0ah
 BYTE " Programmer Name : Chia-Yu, Sun", 0dh, 0ah
 BYTE " Programmer ID   : 0416045", 0dh, 0ah
 BYTE " Email Address   : cysun0226@gmail.com", 0dh, 0ah, 0dh, 0ah
@@ -48,8 +51,33 @@ BYTE "   1-5: point size", 0dh, 0ah
 BYTE "   8:2x4, 9:4x8, 0:8x8", 0dh, 0ah
 BYTE "   < (blending), > (blending)", 0
 
+CaptionString BYTE "Student Name: Chia-Yu, Sun",0
+MessageString BYTE "Welcome to asm final project", 0dh, 0ah, 0dh, 0ah
+				BYTE "My name is Chia-Yu, Sun", 0dh, 0ah
+				BYTE "My Student ID is 0416045", 0dh, 0ah
+				BYTE "My Email is: cysun0226@gmail.com", 0dh, 0ah, 0dh, 0ah
+				BYTE "Control keys: ", 0dh, 0ah, 0dh, 0ah
+				BYTE "  '1', '2', '3', '4' and '5': change image point size", 0dh, 0ah
+				BYTE "  'i' : toggle to show or hide the student ID " , 0dh, 0ah
+				BYTE "  'a': change the current image to back to the initial flower and change it to yellow " , 0dh, 0ah
+				BYTE "  's': switch the image between gray image and initial image " , 0dh, 0ah
+				BYTE "  'g' : toggle the game mode state. If in game mode, show the grid. " , 0dh, 0ah
+				BYTE "  'x': flip the current image horizontally " , 0dh, 0ah
+				BYTE "  'y': turn the current image upside-down ", 0dh, 0ah
+				BYTE "  ESC : show student information and press Enter to quit the program", 0dh, 0ah, 0dh, 0ah
+				BYTE " Mouse usages: ", 0dh, 0ah, 0dh, 0ah
+				BYTE "  left mouse button: select and exchange the images for two selected grid cells", 0dh, 0ah, 0dh, 0ah
+				BYTE "Enjoy playing!", 0
+
 
 EndingMsg BYTE "Thanks for playing.", 0
+
+CaptionString_EndingMessage BYTE "Student Name: Chia-Yu, Sun",0
+MessageString_EndingMessage BYTE "Thanks for playing...", 0dh, 0ah, 0dh, 0ah
+				BYTE "My Student ID is 0416045", 0dh, 0ah, 0dh, 0ah
+				BYTE "My Email is: cysun0226@gmail.com", 0dh, 0ah, 0dh, 0ah
+				BYTE "See you!", 0
+
 
 windowWidth		DWORD 8000
 windowHeight	DWORD 8000
@@ -72,10 +100,10 @@ numParticles DWORD 20000
 particleMaxSpeed DWORD 3
 
 flgQuit		DWORD	0
-numObjects	DWORD	300
-objPosX		SDWORD	512 DUP(0)
-objPosY		SDWORD	512 DUP(0)
-objTypes	BYTE	512 DUP(1)
+numObjects	DWORD	1024
+objPosX		SDWORD	1024 DUP(0)
+objPosY		SDWORD	1024 DUP(0)
+objTypes	BYTE	1024 DUP(1)
 objSpeedX	SDWORD	1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20
 			SDWORD	512 DUP(?)
 objSpeedY	SDWORD	2, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20
@@ -96,6 +124,14 @@ studentID	DWORD 0, 1, 2, 3, 4, 5, 6
 
 particleState BYTE 0
 negOne REAL8 -1.0
+
+DIGIT_BIT_MAP BYTE 1, 1, 1, 0 , 1, 0, 1, 0 , 0, 0, 1, 0 ,1, 0, 0, 0 ,1, 1, 1, 0 ,1, 0, 1, 0 ,1, 1, 1
+							BYTE 1, 0, 1, 0 , 1, 0, 1, 0 , 0, 0, 1, 0 ,1, 0, 0, 0 ,1, 0, 1, 0 ,1, 0, 1, 0 ,1, 0, 0
+							BYTE 1, 0, 1, 0 , 1, 1, 1, 0 , 0, 0, 1, 0 ,1, 1, 1, 0 ,1, 0, 1, 0 ,1, 1, 1, 0 ,1, 1, 1
+							BYTE 1, 0, 1, 0 , 0, 0, 1, 0 , 0, 0, 1, 0 ,1, 0, 1, 0 ,1, 0, 1, 0 ,0, 0, 1, 0 ,0, 0, 1
+							BYTE 1, 1, 1, 0 , 0, 0, 1, 0 , 0, 0, 1, 0 ,1, 1, 1, 0 ,1, 1, 1, 0 ,0, 0, 1, 0 ,1, 1, 1
+;                     0     ;      4     ;      1     ;     6     ;     0     ;     4     ;     5
+
 
 DIGIT_ALL		BYTE 1, 1, 1, 1
 			    	BYTE 1, 1, 1, 1
@@ -241,8 +277,8 @@ colorRed	BYTE	10000 DUP(0)
 colorGreen	BYTE	10000 DUP(0)
 colorBlue	BYTE	10000 DUP(0)
 
-openingMsg	BYTE	"This program shows 0416045 using bitmap and manipulates images....", 0dh
-			BYTE	"Great programming.", 0
+openingMsg	BYTE	 0dh, 0ah, " This program shows 0416045 using bitmap and manipulates images....",0dh, 0ah
+			BYTE	" Great programming.", 0
 movementDIR	BYTE 0
 state		BYTE	0
 
@@ -339,6 +375,19 @@ color_buffer_B DWORD	1024 DUP(0)
 pos_buffer_x DWORD	1024 DUP(0)
 pos_buffer_y DWORD	1024 DUP(0)
 
+digit_speed DWORD 100
+x_space DWORD 10
+y_space DWORD 10
+
+obj_num DWORD 0
+digit_ori_x SDWORD -30000
+digit_ori_y SDWORD 40000
+digit_x SDWORD -30000
+digit_y SDWORD 40000
+
+obj_x_idx DWORD 0
+obj_y_idx DWORD 0
+
 .code
 
 ; =================================================
@@ -352,27 +401,72 @@ asm_InitializeApp PROC C USES ebx edi esi edx
 	or al, 88h
 	mov ah, 080h
 	call SetTextColor
-mov dl, 0
-mov dh, 16
-mov edi, offset openingMsg
-call gotoxy
-P0:
-mov al, [edi]
-call writechar
-; mov eax, 25
-mov eax, 1
-call delay
-mov al, [edi]
-inc edi
-cmp al, 0
-je P1
-cmp al, 0dh
-jne P0
-inc dh
-call gotoxy
-jmp P0
-P1:
-call ReadInt
+	mov dl, 0
+	mov dh, 16
+	mov edi, offset openingMsg
+	call gotoxy
+	P0:
+	mov al, [edi]
+	call writechar
+	; mov eax, 25
+	mov eax, 1
+	call delay
+	mov al, [edi]
+	inc edi
+	cmp al, 0
+	je P1
+	cmp al, 0dh
+	jne P0
+	inc dh
+	call gotoxy
+	jmp P0
+	P1:
+	call ReadInt
+
+	; DONE Ask For Input Init
+	call Crlf
+	mWrite " Initialization setting: "
+	call Crlf
+	call Crlf
+	mWrite "  ( If the user does not input anything, the program will use the default value. )"
+	call Crlf
+	call Crlf
+	mWrite "  > Input the maximum speed of a digit (integer): "
+	call readInt
+	.if eax == 0
+	mov digit_speed, 100
+	.else
+	mov digit_speed, eax
+	.endif
+
+	mWrite "  > Input the spacing for the blocks along the X-axis (integer): "
+	call readInt
+	.if eax == 0
+	mov x_space, 25
+	.else
+	mov x_space, eax
+	.endif
+
+	mWrite "  > Input the spacing for the blocks along the Y-axis (integer): "
+	call readInt
+	.if eax == 0
+	mov y_space, 25
+	.else
+	mov y_space, eax
+	.endif
+
+	call Crlf
+	call Crlf
+	call Crlf
+	mWrite " --- log ---"
+	call Crlf
+	call Crlf
+
+	mov ebx, OFFSET CaptionString
+	mov edx, OFFSET MessageString
+	call MsgBox
+	ret
+
 	ret
 asm_InitializeApp ENDP
 
@@ -431,6 +525,7 @@ asm_ShowTitle ENDP
 ; =================================================
 asm_InitObjects PROC C
 	; TODO asm InitObjects
+	call digit_init
 	ret
 asm_InitObjects ENDP
 
@@ -527,9 +622,12 @@ asm_HandleKey PROC C,
 	mov al, white + blue*16
 	mov ah, 01h
 	call SetTextColor
+	mov ebx, OFFSET CaptionString_EndingMessage
+	mov edx, OFFSET MessageString_EndingMessage
+	call MsgBox
 	mWriteLn "Thanks for playing..."
-	mWriteLn "My studen name is xyz"
-	mWriteLn "My student ID is: 0123456789."
+	mWriteLn "My studen name is Chia-Yu, Sun"
+	mWriteLn "My student ID is: 0416045."
 
 	mWriteLn "Press ENTER to quit."
 	call ReadInt
@@ -548,6 +646,9 @@ asm_HandleKey ENDP
 ; when the program exits.
 ; =================================================
 asm_EndingMessage PROC C
+	mov ebx, OFFSET CaptionString_EndingMessage
+	mov edx, OFFSET MessageString_EndingMessage
+	call MsgBox
 	mov ah, 0h
 	mov al, 0e1h
 	call SetTextColor
@@ -649,10 +750,8 @@ asm_GetObjPosY		ENDP
 ; =================================================
 ; void asm_GetObjectColor (int &r, int &g, int &b, int objID)
 ; Input: objID, the ID of the object
-;
-; Return the color three color components
+; Return: the color three color components
 ; red, green and blue.
-;
 ; =================================================
 asm_GetObjectColor  PROC C USES ebx edi esi,
 	r: PTR DWORD, g: PTR DWORD, b: PTR DWORD, objID: DWORD
@@ -742,9 +841,7 @@ asm_ComputeParticlePosY ENDP
 ; =================================================
 asm_updateSimulationNow PROC C USES edi esi ebx
 ;  TODO update Simulation Now
-;
-;
-;
+
 update0:
 ; =================================================
 ; DO NOT DELETE THE FOLLOWING LINES
@@ -836,7 +933,11 @@ r: PTR DWORD, g: PTR DWORD, b: PTR DWORD
 	mul ebx ; eax = 3* (iy*w + ix)
 
 	mov esi, eax
-	mov ebx, offset mImagePtr0
+	.if imageIndex == 0
+		mov ebx, offset mImagePtr0
+	.else
+		mov ebx, offset mImagePtr1
+	.endif
 	add esi, ebx
 
 	mov ebx, r
@@ -899,7 +1000,41 @@ mov [ebx], eax
 ret
 asm_GetImagePos ENDP
 
+; == digit_init =======================
+; TODO digit_init
+digit_init PROC USES eax ebx ecx edx edi esi
+	mov obj_x_idx, 0
+	mov obj_y_idx, 0
+	mov esi, offset DIGIT_BIT_MAP
+	mov ecx, 5
+	mov ebx, digit_ori_y ; dig_y
+	L_DIGIT_INIT_R:
+		mov eax, digit_ori_x ;dig_x
+		push ecx
+		mov ecx, 27
+		L_DIGIT_INIT_C:
+			movzx edx, BYTE PTR [esi]
+			.if edx == 1
+				mov edi, offset objPosX
+				add edi, obj_x_idx
+				mov SDWORD PTR [edi], eax
+				mov edi, offset objPosY
+				add edi, obj_y_idx
+				mov SDWORD PTR [edi], ebx
+				add obj_x_idx, 4
+				add obj_y_idx, 4
+				inc obj_num
+			.endif
+			add eax, 2500
+			inc esi
+			loop L_DIGIT_INIT_C
+		sub ebx, 2500
+		pop ecx
+		loop L_DIGIT_INIT_R
 
+	ret
+digit_init ENDP
+; == digit_init =======================
 
 
 END
