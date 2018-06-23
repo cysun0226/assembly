@@ -100,7 +100,8 @@ numParticles DWORD 20000
 particleMaxSpeed DWORD 3
 
 flgQuit		DWORD	0
-numObjects	DWORD	1024
+; LABEL numObjects
+numObjects	DWORD	68
 objPosX		SDWORD	1024 DUP(0)
 objPosY		SDWORD	1024 DUP(0)
 objTypes	BYTE	1024 DUP(1)
@@ -335,7 +336,7 @@ FlgGrayLevelImage	BYTE	0	; 6
 
 programState		BYTE	0
 
-;  LABEL my var
+
 IMAGE_HEIGHT	DWORD ?
 IMAGE_WIDTH	DWORD ?
 mouse_convert_scale DWORD 64
@@ -375,6 +376,7 @@ color_buffer_B DWORD	1024 DUP(0)
 pos_buffer_x DWORD	1024 DUP(0)
 pos_buffer_y DWORD	1024 DUP(0)
 
+;  LABEL my var
 digit_speed DWORD 100
 x_space DWORD 10
 y_space DWORD 10
@@ -387,6 +389,10 @@ digit_y SDWORD 40000
 
 obj_x_idx DWORD 0
 obj_y_idx DWORD 0
+digit_direction SDWORD 1 ; 1 ->, -1 <-
+digit_left SDWORD ?
+digit_right SDWORD ?
+if_display_digit SDWORD 0
 
 .code
 
@@ -525,7 +531,7 @@ asm_ShowTitle ENDP
 ; =================================================
 asm_InitObjects PROC C
 	; TODO asm InitObjects
-	call digit_init
+	call clear_obj
 	ret
 asm_InitObjects ENDP
 
@@ -616,7 +622,6 @@ asm_handleMouseEvent ENDP
 asm_HandleKey PROC C,
 	key : DWORD
 	mov eax, key
-; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
 	cmp al, 27 ;  ESC
 	jne L1
 	mov al, white + blue*16
@@ -634,6 +639,26 @@ asm_HandleKey PROC C,
 	exit
 	mov state, 0
 L1:
+	; TODO handle key
+	.if key == 'i'
+		.if if_display_digit == 0
+			mov if_display_digit, 1
+			call digit_init
+		.else
+			mov if_display_digit, 0
+			call clear_obj
+		.endif
+	.endif
+
+	.if key == 'I'
+		.if if_display_digit == 0
+			mov if_display_digit, 1
+			call digit_init
+		.else
+			mov if_display_digit, 0
+			call clear_obj
+		.endif
+	.endif
 exit0:
 	mov eax, 0
 	ret
@@ -755,7 +780,7 @@ asm_GetObjPosY		ENDP
 ; =================================================
 asm_GetObjectColor  PROC C USES ebx edi esi,
 	r: PTR DWORD, g: PTR DWORD, b: PTR DWORD, objID: DWORD
-;
+; TODO Get Object Color
 	mov ebx, r
 	mov DWORD PTR [ebx], 0
 	mov ebx, g
@@ -841,6 +866,11 @@ asm_ComputeParticlePosY ENDP
 ; =================================================
 asm_updateSimulationNow PROC C USES edi esi ebx
 ;  TODO update Simulation Now
+	.if if_display_digit == 1
+		call move_digit
+	.else
+		mov numObjects, 0
+	.endif
 
 update0:
 ; =================================================
@@ -1001,10 +1031,12 @@ ret
 asm_GetImagePos ENDP
 
 ; == digit_init =======================
-; TODO digit_init
+; DONE digit_init
 digit_init PROC USES eax ebx ecx edx edi esi
 	mov obj_x_idx, 0
 	mov obj_y_idx, 0
+	mov eax, digit_ori_x
+	mov digit_left, eax
 	mov esi, offset DIGIT_BIT_MAP
 	mov ecx, 5
 	mov ebx, digit_ori_y ; dig_y
@@ -1031,10 +1063,70 @@ digit_init PROC USES eax ebx ecx edx edi esi
 		sub ebx, 2500
 		pop ecx
 		loop L_DIGIT_INIT_R
-
+	mov digit_right, eax
+	sub digit_right, 2500
 	ret
 digit_init ENDP
 ; == digit_init =======================
 
+; == move_digit =======================
+; DONE move digit
+move_digit PROC USES eax ebx ecx edx edi esi
+	mov obj_x_idx, 0
+	mov obj_y_idx, 0
+	; boundary check
+	mov eax, canvasMaxX
+	.if digit_right >= eax
+		neg digit_direction
+	.endif
+	mov eax, canvasMinX
+	.if digit_left <= eax
+		neg digit_direction
+	.endif
+
+	.if digit_direction == 1
+		add digit_right, 100
+		add digit_left, 100
+	.else
+		sub digit_left, 100
+		sub digit_right, 100
+	.endif
+
+
+	mov ecx, obj_num
+L_MOVE_DIGIT:
+	mov edi, offset objPosX
+	add edi, obj_x_idx
+	.if digit_direction == 1
+		add SDWORD PTR [edi], 100
+	.else
+		sub SDWORD PTR [edi], 100
+	.endif
+	add obj_x_idx, 4
+	loop L_MOVE_DIGIT
+
+	ret
+move_digit ENDP
+; == move_digit =======================
+
+; == clear_obj ========================
+; TODO clear obj
+clear_obj PROC USES eax ebx ecx edx edi esi
+	mov obj_x_idx, 0
+
+	mov ecx, 1024
+L_CLEAR_OBJ:
+	mov edi, offset objPosX
+	add edi, obj_x_idx
+	mov SDWORD PTR [edi], 60000
+	mov edi, offset objPosY
+	add edi, obj_x_idx
+	mov SDWORD PTR [edi], 60000
+	add obj_x_idx, 4
+	loop L_CLEAR_OBJ
+
+	ret
+clear_obj ENDP
+; == clear_obj ========================
 
 END
