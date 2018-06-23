@@ -101,7 +101,7 @@ particleMaxSpeed DWORD 3
 
 flgQuit		DWORD	0
 ; LABEL numObjects
-numObjects	DWORD	68
+numObjects	DWORD	1024
 objPosX		SDWORD	1024 DUP(0)
 objPosY		SDWORD	1024 DUP(0)
 objTypes	BYTE	1024 DUP(1)
@@ -393,6 +393,11 @@ digit_direction SDWORD 1 ; 1 ->, -1 <-
 digit_left SDWORD ?
 digit_right SDWORD ?
 if_display_digit SDWORD 0
+image_color_idx DWORD 0
+image_idx DWORD 0
+if_turn_yellow SDWORD 1
+mImagePtrGray BYTE 200000 DUP(?)
+if_gray_image SDWORD -1
 
 .code
 
@@ -531,6 +536,8 @@ asm_ShowTitle ENDP
 ; =================================================
 asm_InitObjects PROC C
 	; TODO asm InitObjects
+	mov if_turn_yellow, 0
+	call backup_image
 	call clear_obj
 	ret
 asm_InitObjects ENDP
@@ -640,6 +647,8 @@ asm_HandleKey PROC C,
 	mov state, 0
 L1:
 	; TODO handle key
+
+	; digits
 	.if key == 'i'
 		.if if_display_digit == 0
 			mov if_display_digit, 1
@@ -649,7 +658,6 @@ L1:
 			call clear_obj
 		.endif
 	.endif
-
 	.if key == 'I'
 		.if if_display_digit == 0
 			mov if_display_digit, 1
@@ -659,6 +667,55 @@ L1:
 			call clear_obj
 		.endif
 	.endif
+
+	; pixel size
+	.if key == '1'
+		mov mImagePixelPointSize, 1
+	.endif
+	.if key == '2'
+		mov mImagePixelPointSize, 2
+	.endif
+	.if key == '3'
+		mov mImagePixelPointSize, 3
+	.endif
+	.if key == '4'
+		mov mImagePixelPointSize, 4
+	.endif
+	.if key == '5'
+		mov mImagePixelPointSize, 5
+	.endif
+
+	; a (turn yellow)
+	.if key == 'a'
+		call restore_image
+		mov mImagePixelPointSize, 6
+		mov if_turn_yellow, 1
+		call turn_yellow
+	.endif
+
+	; s
+	.if key == 's'
+		.if if_gray_image == -1
+			neg if_gray_image
+			call gray_image
+		.else
+			neg if_gray_image
+			call restore_image
+		.endif
+	.endif
+
+	; x (flip horizon)
+	.if key == 'x'
+		call flip_horizon
+	.endif
+
+	; y (upside down)
+	.if key == 'y'
+		call upside_down
+	.endif
+
+
+
 exit0:
 	mov eax, 0
 	ret
@@ -872,6 +929,10 @@ asm_updateSimulationNow PROC C USES edi esi ebx
 		mov numObjects, 0
 	.endif
 
+	.if if_turn_yellow == 1
+		call turn_yellow
+	.endif
+
 update0:
 ; =================================================
 ; DO NOT DELETE THE FOLLOWING LINES
@@ -893,9 +954,9 @@ mov ebx, h
 mov mImageHeight, ebx
 mul ebx ; eax = mImageWidth * mImageHeight
 .if imageIndex == 0
-mov esi, offset mImagePtr0
+	mov esi, offset mImagePtr0
 .else
-mov esi, offset mImagePtr1
+	mov esi, offset mImagePtr1
 .endif
 mov ecx, eax
 L_SET_IMG_INFO:
@@ -964,8 +1025,10 @@ r: PTR DWORD, g: PTR DWORD, b: PTR DWORD
 
 	mov esi, eax
 	.if imageIndex == 0
+		mov image_idx, 0
 		mov ebx, offset mImagePtr0
 	.else
+		mov image_idx, 1
 		mov ebx, offset mImagePtr1
 	.endif
 	add esi, ebx
@@ -983,7 +1046,6 @@ r: PTR DWORD, g: PTR DWORD, b: PTR DWORD
 	mov al, BYTE PTR [esi]
 	mov ebx, b
 	mov BYTE PTR [ebx], al
-
 
 ret
 asm_GetImageColour ENDP
@@ -1110,7 +1172,7 @@ move_digit ENDP
 ; == move_digit =======================
 
 ; == clear_obj ========================
-; TODO clear obj
+; DONE clear obj
 clear_obj PROC USES eax ebx ecx edx edi esi
 	mov obj_x_idx, 0
 
@@ -1128,5 +1190,192 @@ L_CLEAR_OBJ:
 	ret
 clear_obj ENDP
 ; == clear_obj ========================
+
+; == turn_yellow ======================
+; TODO turn yellow
+turn_yellow PROC USES eax ebx ecx edx edi esi
+	; .if image_idx == 0
+	; 	mov esi, offset mImagePtr0
+	; .else
+	; 	mov esi, offset mImagePtr1
+	; .endif
+
+	mov esi, offset mImagePtr0
+	mov edi, offset mTmpBuffer
+	mov image_color_idx, 0
+	mov if_turn_yellow, 0
+	mov ecx, 65536
+L_TURN_YELLOW:
+	; r
+	inc esi
+	inc edi
+	; g
+	inc esi
+	inc edi
+	; b
+	mov al, BYTE PTR [edi]
+	.if al > 100
+		mov al, BYTE PTR [esi]
+		.if al > 50
+			dec BYTE PTR [esi]
+			mov if_turn_yellow, 1
+		.endif
+	.endif
+	inc esi
+	inc edi
+	loop L_TURN_YELLOW
+
+	ret
+turn_yellow ENDP
+; == turn_yellow ======================
+
+; == restore_image =====================
+; CHANGED restore_image
+restore_image PROC USES eax ebx ecx edx edi esi
+	mov edi, offset mImagePtr0
+	mov esi, offset mTmpBuffer
+	mov ecx, 65535*3
+L_RESTORE_IMAGE:
+	mov al, BYTE PTR [esi]
+	mov BYTE PTR [edi], al
+	inc esi
+	inc edi
+	loop L_RESTORE_IMAGE
+	ret
+restore_image ENDP
+; == restore_image =====================
+
+; == backup_image =====================
+; CHANGED backup_image
+backup_image PROC USES eax ebx ecx edx edi esi
+	mov edi, offset mTmpBuffer
+	.if image_idx == 0
+		mov esi, offset mImagePtr0
+	.endif
+	.if image_idx == 1
+		mov esi, offset mImagePtr1
+	.endif
+	mov ecx, 65535*3
+L_BACKUP_IMAGE:
+	mov al, BYTE PTR [esi]
+	mov BYTE PTR [edi], al
+	inc esi
+	inc edi
+	loop L_BACKUP_IMAGE
+	ret
+backup_image ENDP
+; == backup_image =====================
+
+; == gray_image =====================
+; (r+g+b)/3
+; CHANGED gray_image
+gray_image PROC USES eax ebx ecx edx edi esi
+	.if image_idx == 0
+		mov esi, offset mImagePtr0
+	.endif
+	.if image_idx == 1
+		mov esi, offset mImagePtr1
+	.endif
+	mov esi, offset mImagePtr0
+	mov eax, 0
+	mov bl, 3
+	mov ecx, 65535
+L_GRAY_IMAGE:
+	movzx eax, BYTE PTR [esi]
+	inc esi
+	movzx edx, BYTE PTR [esi]
+	add eax, edx
+	inc esi
+	movzx edx, BYTE PTR [esi]
+	add eax, edx
+	inc esi
+
+	; / 3
+	mov bl, 3
+	div bl
+	sub esi, 3
+	mov BYTE PTR [esi], al
+	inc esi
+	mov BYTE PTR [esi], al
+	inc esi
+	mov BYTE PTR [esi], al
+	inc esi
+
+	loop L_GRAY_IMAGE
+	ret
+gray_image ENDP
+; == gray_image =====================
+
+; == flip_horizon ===================
+; DONE flip horizon
+flip_horizon PROC USES eax ebx ecx edx edi esi
+	mov esi, offset mImagePtr0
+	mov ecx, 256
+L_FLIP_HORIZON_R:
+	push ecx
+	mov ecx, 256
+	L_FLIP_HORIZON_C_PUSH:
+		movzx eax, BYTE PTR [esi]
+		push eax
+		inc esi
+		movzx eax, BYTE PTR [esi]
+		push eax
+		inc esi
+		movzx eax, BYTE PTR [esi]
+		push eax
+		inc esi
+		loop L_FLIP_HORIZON_C_PUSH
+	sub esi, 256*3
+	mov ecx, 256
+	L_FLIP_HORIZON_C_POP:
+		pop eax
+		mov ebx, eax
+		inc esi
+		pop eax
+		mov BYTE PTR [esi], al
+		inc esi
+		pop eax
+		mov BYTE PTR [esi], bl
+		sub esi, 2
+		mov BYTE PTR [esi], al
+		add esi, 2
+		inc esi
+		loop L_FLIP_HORIZON_C_POP
+	pop ecx
+	loop L_FLIP_HORIZON_R
+	ret
+flip_horizon ENDP
+; == flip_horizon ===================
+
+; == upside_down ====================
+; DONE upside down
+upside_down PROC USES eax ebx ecx edx edi esi
+	mov esi, offset mImagePtr0
+	mov ecx, 65536*3
+L_UPSIDE_DOWN_PUSH:
+	movzx eax, BYTE PTR [esi]
+	push eax
+	inc esi
+	loop L_UPSIDE_DOWN_PUSH
+
+	mov esi, offset mImagePtr0
+	mov ecx, 65536
+L_UPSIDE_DOWN_POP:
+	pop ebx
+	inc esi
+	pop eax
+	mov BYTE PTR [esi], al
+	inc esi
+	pop eax
+	sub esi, 2
+	mov BYTE PTR [esi], al
+	add esi, 2
+	mov BYTE PTR [esi], bl
+	inc esi
+	loop L_UPSIDE_DOWN_POP
+	call flip_horizon
+	ret
+upside_down ENDP
+; == upside_down ====================
 
 END
