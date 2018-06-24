@@ -376,6 +376,11 @@ color_buffer_B DWORD	1024 DUP(0)
 pos_buffer_x DWORD	1024 DUP(0)
 pos_buffer_y DWORD	1024 DUP(0)
 
+; LABEL my PROTO
+set_grid_dimension PROTO,
+grid_x: DWORD,
+grid_y: DWORD
+
 ;  LABEL my var
 digit_speed DWORD 100
 x_space DWORD 10
@@ -398,6 +403,7 @@ image_idx DWORD 0
 if_turn_yellow SDWORD 1
 mImagePtrGray BYTE 200000 DUP(?)
 if_gray_image SDWORD -1
+if_game_mode SDWORD -1
 
 .code
 
@@ -712,6 +718,35 @@ L1:
 	; y (upside down)
 	.if key == 'y'
 		call upside_down
+	.endif
+
+	; g (game mode)
+	.if key == 'g'
+		neg if_game_mode
+		.if if_game_mode == 1
+			INVOKE set_grid_dimension, 8, 8
+		.else
+			call restore_image
+		.endif
+	.endif
+
+	; grid setting
+	.if key == '8'
+		.if if_game_mode == 1
+			INVOKE set_grid_dimension, 2, 4
+		.endif
+	.endif
+
+	.if key == '9'
+		.if if_game_mode == 1
+			INVOKE set_grid_dimension, 4, 8
+		.endif
+	.endif
+
+	.if key == '0'
+		.if if_game_mode == 1
+			INVOKE set_grid_dimension, 8, 8
+		.endif
 	.endif
 
 
@@ -1377,5 +1412,81 @@ L_UPSIDE_DOWN_POP:
 	ret
 upside_down ENDP
 ; == upside_down ====================
+
+; == set_grid_dimension =============
+; CHANGED grid dimension
+set_grid_dimension PROC USES eax ebx ecx edx edi esi,
+	grid_x: DWORD,
+	grid_y: DWORD
+
+	call restore_image
+	mov esi, offset mImagePtr0
+
+	 mov ecx, 256
+	L_GRID_X:
+		cmp ecx, 1
+		je L_GRID_X_FIRST
+		cmp ecx, 255
+		je L_GRID_X_FIRST
+		.if grid_x == 4
+			test ecx, 111111b
+		.elseif grid_x == 8
+			test ecx, 11111b
+		.else
+			test ecx, 1111111b
+		.endif
+		jne L_GRID_X_PASS
+		L_GRID_X_FIRST:
+		push ecx
+		mov ecx, 256
+		L_GRID_X_DRAW:
+			mov BYTE PTR [esi], 255
+			inc esi
+			mov BYTE PTR [esi], 255
+			inc esi
+			mov BYTE PTR [esi], 255
+			inc esi
+			loop L_GRID_X_DRAW
+			sub esi, 256*3
+		pop ecx
+		L_GRID_X_PASS:
+		add esi, 256*3
+		loop L_GRID_X
+
+		mov esi, offset mImagePtr0
+		mov ecx, 256
+	 L_GRID_Y:
+		 push ecx
+		 mov ecx, 256
+		 L_GRID_Y_C:
+		 	 cmp ecx, 1
+			 je L_GRID_Y_RIGHT
+			 .if grid_y == 8
+			 		test ecx, 11111b
+			 .elseif grid_y == 4
+			 		test ecx, 111111b
+			 .else ; 2
+			 		test ecx, 1111111b
+			 .endif
+			 jne L_GRID_Y_PASS
+			 L_GRID_Y_RIGHT:
+			 mov BYTE PTR [esi], 255
+			 inc esi
+			 mov BYTE PTR [esi], 255
+			 inc esi
+			 mov BYTE PTR [esi], 255
+			 inc esi
+			 sub esi, 3
+		 L_GRID_Y_PASS:
+		   add esi, 3
+			 loop L_GRID_Y_C
+		 pop ecx
+		 loop L_GRID_Y
+
+
+	ret
+set_grid_dimension ENDP
+; == set_grid_dimension =============
+
 
 END
