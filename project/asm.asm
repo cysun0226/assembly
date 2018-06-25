@@ -381,6 +381,11 @@ set_grid_dimension PROTO,
 grid_x: DWORD,
 grid_y: DWORD
 
+coordinate_mapping PROTO,
+row_pos: DWORD
+
+pos_x DWORD ?
+pos_y DWORD ?
 ;  LABEL my var
 digit_speed DWORD 100
 x_space DWORD 10
@@ -404,6 +409,33 @@ if_turn_yellow SDWORD 1
 mImagePtrGray BYTE 200000 DUP(?)
 if_gray_image SDWORD -1
 if_game_mode SDWORD -1
+cur_grid BYTE 100 DUP(?)
+
+grid_top DWORD ?
+grid_bottom DWORD ?
+grid_left DWORD ?
+grid_right DWORD ?
+
+selected_grid_top DWORD ?
+selected_grid_bottom DWORD ?
+selected_grid_left DWORD ?
+selected_grid_right DWORD ?
+
+prev_selected_grid_top DWORD ?
+prev_selected_grid_bottom DWORD ?
+prev_selected_grid_left DWORD ?
+prev_selected_grid_right DWORD ?
+
+mImagePtrGame BYTE 200000 DUP(?)
+mImagePtrSelect BYTE 200000 DUP(?)
+
+hover_color SDWORD 1
+select_grid SDWORD 0
+
+mPrevSelectBuffer BYTE 200000 DUP(?)
+mCurSelectBuffer BYTE 200000 DUP(?)
+swap_step DWORD 0
+
 
 .code
 
@@ -585,6 +617,17 @@ asm_handleMousePassiveEvent PROC C USES eax ebx edx,
 	mWrite "y:"
 	call WriteDec
 	mWriteln " "
+
+	; TODO Mouse Passive Event
+ .if if_game_mode == 1
+ 		mov eax, x
+		mov pos_x, eax
+		mov eax, y
+		mov pos_y, eax
+		call earse_grid
+		call get_grid_range
+ .endif
+
 	ret
 asm_handleMousePassiveEvent ENDP
 
@@ -596,6 +639,7 @@ asm_handleMousePassiveEvent ENDP
 asm_handleMouseEvent PROC C USES ebx,
 	button : DWORD, status : DWORD, x : DWORD, y : DWORD
 
+	call earse_grid
 	mWriteln "asm_handleMouseEvent"
 	mov eax, button
 	mWrite "button:"
@@ -605,11 +649,13 @@ asm_handleMouseEvent PROC C USES ebx,
 	mWrite "status:"
 	call WriteDec
 	mov eax, x
+	mov pos_x, eax
 	mWriteln " "
 	mWrite "x:"
 	call WriteDec
 	mWriteln " "
 	mov eax, y
+	mov pos_y, eax
 	mWrite "y:"
 	call WriteDec
 	mWriteln " "
@@ -621,7 +667,32 @@ asm_handleMouseEvent PROC C USES ebx,
 	mWrite "windowHeight:"
 	call WriteDec
 	mWriteln " "
-	jmp exit0
+
+	; TODO click
+	;.if select_grid == 0
+	cmp status, 1
+	jne exit0
+
+
+
+	;.endif
+	.if select_grid == 1
+		call get_grid_range
+		mov swap_step, 0
+		call swap_buf
+		mov swap_step, 1
+		call swap_buf
+		INVOKE set_grid_dimension, 8, 8
+		mov select_grid, 0
+		call backup_image
+		jmp exit0
+	.endif
+
+	INVOKE set_grid_dimension, 8, 8
+	mov select_grid, 1
+	call get_grid_range
+	call draw_selected
+	call save_selected
 exit0:
 	ret
 asm_handleMouseEvent ENDP
@@ -724,7 +795,9 @@ L1:
 	.if key == 'g'
 		neg if_game_mode
 		.if if_game_mode == 1
+			call backup_image
 			INVOKE set_grid_dimension, 8, 8
+			call backup_image
 		.else
 			call restore_image
 		.endif
@@ -874,11 +947,11 @@ asm_GetObjectColor  PROC C USES ebx edi esi,
 	r: PTR DWORD, g: PTR DWORD, b: PTR DWORD, objID: DWORD
 ; TODO Get Object Color
 	mov ebx, r
-	mov DWORD PTR [ebx], 0
+	mov DWORD PTR [ebx], 100
 	mov ebx, g
 	mov DWORD PTR [ebx], 255
 	mov ebx, b
-	mov DWORD PTR [ebx], 0
+	mov DWORD PTR [ebx], 200
 	ret
 ;
 asm_GetObjectColor ENDP
@@ -902,7 +975,7 @@ asm_ComputeRotationAngle ENDP
 ; =================================================
 asm_ComputePositionX PROC C USES edi esi,
 	x: DWORD, objID: DWORD
-	; CHANGED asm Compute PosX
+	; DONE asm Compute PosX
 	mov esi, offset objPosX
 	mov eax, objID
 	mov ebx, 4
@@ -921,7 +994,7 @@ asm_ComputePositionX ENDP
 ; =================================================
 asm_ComputePositionY PROC C USES ebx esi edx,
 	y: DWORD, objID: DWORD
-	; CHANGED asm Compute PosY
+	; DONE asm Compute PosY
 	mov esi, offset objPosY
 	mov eax, objID
 	mov ebx, 4
@@ -967,6 +1040,10 @@ asm_updateSimulationNow PROC C USES edi esi ebx
 	.if if_turn_yellow == 1
 		call turn_yellow
 	.endif
+
+	.if if_game_mode == 1
+	  call hover_grid
+  .endif
 
 update0:
 ; =================================================
@@ -1066,6 +1143,7 @@ r: PTR DWORD, g: PTR DWORD, b: PTR DWORD
 		mov image_idx, 1
 		mov ebx, offset mImagePtr1
 	.endif
+	mov ebx, offset mImagePtr0
 	add esi, ebx
 
 	mov ebx, r
@@ -1098,7 +1176,7 @@ asm_getStudentInfoString ENDP
 ; void asm_GetImageDimension(int &iw, int &ih)
 asm_GetImageDimension PROC C USES ebx,
 iw : PTR DWORD, ih : PTR DWORD
-	;  CHANGED Get Image Dimension
+	;  DONE Get Image Dimension
 	mov ebx, iw
 	mov eax, mImageWidth
 	mov [ebx], eax
@@ -1227,15 +1305,15 @@ clear_obj ENDP
 ; == clear_obj ========================
 
 ; == turn_yellow ======================
-; TODO turn yellow
+; DONE turn yellow
 turn_yellow PROC USES eax ebx ecx edx edi esi
-	; .if image_idx == 0
-	; 	mov esi, offset mImagePtr0
-	; .else
-	; 	mov esi, offset mImagePtr1
-	; .endif
+	.if image_idx == 0
+		mov esi, offset mImagePtr0
+	.else
+		mov esi, offset mImagePtr1
+	.endif
 
-	mov esi, offset mImagePtr0
+	; mov esi, offset mImagePtr0
 	mov edi, offset mTmpBuffer
 	mov image_color_idx, 0
 	mov if_turn_yellow, 0
@@ -1267,8 +1345,19 @@ turn_yellow ENDP
 ; == restore_image =====================
 ; CHANGED restore_image
 restore_image PROC USES eax ebx ecx edx edi esi
+	.if image_idx == 1
+		mov edi, offset mImagePtr1
+	.else
+		mov edi, offset mImagePtr0
+	.endif
 	mov edi, offset mImagePtr0
-	mov esi, offset mTmpBuffer
+
+	.if if_game_mode == 1
+		mov esi, offset mImagePtrGame
+	.else
+		mov esi, offset mTmpBuffer
+	.endif
+
 	mov ecx, 65535*3
 L_RESTORE_IMAGE:
 	mov al, BYTE PTR [esi]
@@ -1281,15 +1370,22 @@ restore_image ENDP
 ; == restore_image =====================
 
 ; == backup_image =====================
-; CHANGED backup_image
+; DONE backup image
 backup_image PROC USES eax ebx ecx edx edi esi
-	mov edi, offset mTmpBuffer
+	.if if_game_mode == 1
+		mov edi, offset mImagePtrGame
+	.else
+		mov edi, offset mTmpBuffer
+	.endif
+
 	.if image_idx == 0
 		mov esi, offset mImagePtr0
 	.endif
 	.if image_idx == 1
 		mov esi, offset mImagePtr1
 	.endif
+	mov esi, offset mImagePtr0
+
 	mov ecx, 65535*3
 L_BACKUP_IMAGE:
 	mov al, BYTE PTR [esi]
@@ -1303,7 +1399,7 @@ backup_image ENDP
 
 ; == gray_image =====================
 ; (r+g+b)/3
-; CHANGED gray_image
+; DONE gray_image
 gray_image PROC USES eax ebx ecx edx edi esi
 	.if image_idx == 0
 		mov esi, offset mImagePtr0
@@ -1419,8 +1515,16 @@ set_grid_dimension PROC USES eax ebx ecx edx edi esi,
 	grid_x: DWORD,
 	grid_y: DWORD
 
-	call restore_image
+	.if select_grid == 0
+		call restore_image
+	.endif
+	.if image_idx == 0
+		mov esi, offset mImagePtr0
+	.else
+		mov esi, offset mImagePtr1
+	.endif
 	mov esi, offset mImagePtr0
+
 
 	 mov ecx, 256
 	L_GRID_X:
@@ -1488,5 +1592,354 @@ set_grid_dimension PROC USES eax ebx ecx edx edi esi,
 set_grid_dimension ENDP
 ; == set_grid_dimension =============
 
+; == earse_grid =====================
+; TODO earse grid
+earse_grid PROC USES eax ebx ecx edx edi esi
+	call restore_image
+	ret
+earse_grid ENDP
+; == earse_grid =====================
+
+; == hover_grid =====================
+; TODO hover grid
+hover_grid PROC USES eax ebx ecx edx edi esi
+
+neg hover_color
+mov esi, offset mImagePtr0
+mov ecx, 256
+L_DRAW_GRID:
+ push ecx
+ mov edx, ecx ; edx = y
+ mov ecx, 256
+ L_DRAW_GRID_C:
+ 	 ; ecx = x
+	 mov eax, 256
+	 sub eax, ecx
+	 cmp eax, grid_left
+	 je L_DRAW_GRID_COL
+	 cmp eax, grid_left
+	 jl L_DRAW_GRID_PASS
+	 cmp eax, grid_right
+	 je L_DRAW_GRID_COL
+	 jg L_DRAW_GRID_PASS
+	 jmp L_DRAW_GRID_ROW
+
+	 L_DRAW_GRID_COL:
+	 mov eax, 256
+	 sub eax, edx
+	 cmp eax, grid_top
+	 jl L_DRAW_GRID_PASS
+	 cmp eax, grid_bottom
+	 jg L_DRAW_GRID_PASS
+	 jmp L_DRAW_GRID_LINE
+
+	 L_DRAW_GRID_ROW:
+	 mov eax, 256
+	 sub eax, edx
+	 cmp eax, grid_top
+ 	 je L_DRAW_GRID_LINE
+	 cmp eax, grid_bottom
+	 je L_DRAW_GRID_LINE
+	 jmp L_DRAW_GRID_PASS
+
+	 L_DRAW_GRID_LINE:
+
+	 mov BYTE PTR [esi], 255
+	 inc esi
+	 .if hover_color == 1
+	 		mov BYTE PTR [esi], 255
+	 .else
+	    mov BYTE PTR [esi], 0
+	 .endif
+	 inc esi
+	 mov BYTE PTR [esi], 0
+	 inc esi
+	 sub esi, 3
+ L_DRAW_GRID_PASS:
+	 add esi, 3
+	 loop L_DRAW_GRID_C
+ pop ecx
+ dec ecx
+ cmp ecx, 0
+ jg L_DRAW_GRID
+
+	ret
+hover_grid ENDP
+
+; == hover_grid =====================
+
+; == draw_selected =====================
+; TODO draw selected
+draw_selected PROC USES eax ebx ecx edx edi esi
+
+mov esi, offset mImagePtr0
+mov ecx, 256
+L_DRAW_SELECTED_GRID:
+ push ecx
+ mov edx, ecx ; edx = y
+ mov ecx, 256
+ L_DRAW_SELECTED_GRID_C:
+ 	 ; ecx = x
+	 mov eax, 256
+	 sub eax, ecx
+	 cmp eax, selected_grid_left
+	 je L_DRAW_SELECTED_GRID_COL
+	 jl L_DRAW_SELECTED_GRID_PASS
+	 cmp eax, selected_grid_right
+	 je L_DRAW_SELECTED_GRID_COL
+	 jg L_DRAW_SELECTED_GRID_PASS
+	 jmp L_DRAW_SELECTED_GRID_ROW
+
+	 L_DRAW_SELECTED_GRID_COL:
+	 mov eax, 256
+	 sub eax, edx
+	 cmp eax, selected_grid_top
+	 jl L_DRAW_SELECTED_GRID_PASS
+	 cmp eax, selected_grid_bottom
+	 jg L_DRAW_SELECTED_GRID_PASS
+	 jmp L_DRAW_SELECTED_GRID_LINE
+
+	 L_DRAW_SELECTED_GRID_ROW:
+	 mov eax, 256
+	 sub eax, edx
+	 cmp eax, selected_grid_top
+ 	 je L_DRAW_SELECTED_GRID_LINE
+	 cmp eax, selected_grid_bottom
+	 je L_DRAW_SELECTED_GRID_LINE
+	 jmp L_DRAW_SELECTED_GRID_PASS
+
+	 L_DRAW_SELECTED_GRID_LINE:
+
+	 mov BYTE PTR [esi], 255
+	 inc esi
+	 mov BYTE PTR [esi], 0
+	 inc esi
+	 mov BYTE PTR [esi], 0
+	 inc esi
+	 sub esi, 3
+ L_DRAW_SELECTED_GRID_PASS:
+	 add esi, 3
+	 loop L_DRAW_SELECTED_GRID_C
+ pop ecx
+ dec ecx
+ cmp ecx, 0
+ jg L_DRAW_SELECTED_GRID
+
+ mov eax, selected_grid_top
+ mov prev_selected_grid_top, eax
+ mov eax, selected_grid_bottom
+ mov prev_selected_grid_bottom, eax
+ mov eax, selected_grid_right
+ mov prev_selected_grid_right, eax
+ mov eax, selected_grid_left
+ mov prev_selected_grid_left, eax
+
+ call backup_image
+
+	ret
+draw_selected ENDP
+
+; == draw_selected ==================
+
+; == get_grid_range =================
+; TODO get grid range
+get_grid_range PROC USES eax ebx ecx edx edi esi
+	mov edx, 0
+	mov eax, pos_x
+	mov ebx, 100
+	div ebx
+	; eax = column
+	mov ebx, 32
+	mul ebx ; eax = column*100
+	mov grid_left, eax
+	.if select_grid == 1
+		mov selected_grid_left, eax
+	.endif
+	add eax, 32
+	mov grid_right, eax
+	.if select_grid == 1
+		mov selected_grid_right, eax
+	.endif
+
+	mov edx, 0
+	mov eax, pos_y
+	mov ebx, 100
+	div ebx
+	; eax = row
+	mov ebx, 32
+	mul ebx ; eax = column*100
+	mov grid_top, eax
+	.if select_grid == 1
+		mov selected_grid_top, eax
+	.endif
+	add eax, 32
+	.if eax == 256
+		dec eax
+	.endif
+	mov grid_bottom, eax
+	.if select_grid == 1
+		mov selected_grid_bottom, eax
+	.endif
+
+	ret
+get_grid_range ENDP
+; == get_grid_range =================
+
+
+
+; == mouse_coordinate_convert =======
+mouse_coordinate_convert PROC USES eax ebx ecx edx edi esi
+	ret
+mouse_coordinate_convert ENDP
+; == mouse_coordinate_convert =======
+
+; == coordinate_mapping =============
+; TODO coordinate mapping
+coordinate_mapping PROC USES eax ebx ecx edx edi esi,
+	row_pos: DWORD
+
+	mov edx, 0
+	mov eax, row_pos
+	mov ebx, 800
+	div ebx
+
+	; eax = r (y)
+	; edx = c (x)
+	mov pos_x, edx
+	mov pos_y, eax
+
+	ret
+coordinate_mapping ENDP
+; == coordinate_mapping =============
+
+; == save_selected ==================
+; TODO save selected
+save_selected PROC USES eax ebx ecx edx edi esi
+mov esi, offset mImagePtr0
+mov edi, offset mPrevSelectBuffer
+mov ecx, 256
+L_SAVE_SELECTED_GRID:
+ push ecx
+ mov edx, ecx ; edx = y
+ mov ecx, 256
+ L_SAVE_SELECTED_C:
+ 	 ; ecx = x
+	 mov eax, 256
+	 sub eax, ecx
+	 cmp eax, selected_grid_left
+	 jl L_SAVE_SELECTED_PASS
+	 cmp eax, selected_grid_right
+	 jge L_SAVE_SELECTED_PASS
+
+	 mov eax, 256
+	 sub eax, edx
+	 cmp eax, selected_grid_top
+	 jl L_SAVE_SELECTED_PASS
+	 cmp eax, selected_grid_bottom
+	 jge L_SAVE_SELECTED_PASS
+
+	 mov al, BYTE PTR [esi]
+	 mov BYTE PTR [edi], al
+	 inc esi
+	 inc edi
+	 mov al, BYTE PTR [esi]
+	 mov BYTE PTR [edi], al
+	 inc esi
+	 inc edi
+	 mov al, BYTE PTR [esi]
+	 mov BYTE PTR [edi], al
+	 inc esi
+	 inc edi
+	 sub esi, 3
+ L_SAVE_SELECTED_PASS:
+	 add esi, 3
+	 loop L_SAVE_SELECTED_C
+ pop ecx
+ dec ecx
+ cmp ecx, 0
+ jg L_SAVE_SELECTED_GRID
+
+	ret
+save_selected ENDP
+; == save_selected ==================
+
+; == swap ===========================
+; TODO swap_buf
+swap_buf PROC USES eax ebx ecx edx edi esi
+	mov esi, offset mImagePtr0
+	mov edi, offset mPrevSelectBuffer
+
+	mov ecx, 256
+	L_SWAP:
+		push ecx
+		mov edx, ecx
+		mov ecx, 256
+		L_SWAP_C:
+		  mov eax, 256
+		  sub eax, ecx
+			.if swap_step == 0
+		  	mov ebx, selected_grid_left
+			.else
+				mov ebx, prev_selected_grid_left
+			.endif
+			cmp eax, ebx
+		  jl L_SWAP_PASS
+			.if swap_step == 0
+		  	mov ebx, selected_grid_right
+			.else
+				mov ebx, prev_selected_grid_right
+			.endif
+			cmp eax, ebx
+		  jge L_SWAP_PASS
+
+			mov eax, 256
+	 	  sub eax, edx
+			.if swap_step == 0
+		  	mov ebx, selected_grid_top
+			.else
+				mov ebx, prev_selected_grid_top
+			.endif
+	 	  cmp eax, ebx
+	 	  jl L_SWAP_PASS
+			.if swap_step == 0
+		  	mov ebx, selected_grid_bottom
+			.else
+				mov ebx, prev_selected_grid_bottom
+			.endif
+	 	  cmp eax, ebx
+	 	  jge L_SWAP_PASS
+
+			mov al, BYTE PTR [esi]
+			mov ah, BYTE PTR [edi]
+	 	  mov BYTE PTR [edi], al
+			mov BYTE PTR [esi], ah
+	 	  inc esi
+	 	  inc edi
+			mov al, BYTE PTR [esi]
+			mov ah, BYTE PTR [edi]
+	 	  mov BYTE PTR [edi], al
+			mov BYTE PTR [esi], ah
+	 	  inc esi
+	 	  inc edi
+			mov al, BYTE PTR [esi]
+			mov ah, BYTE PTR [edi]
+	 	  mov BYTE PTR [edi], al
+			mov BYTE PTR [esi], ah
+	 	  inc esi
+	 	  inc edi
+	 	  sub esi, 3
+		L_SWAP_PASS:
+			add esi, 3
+			dec ecx
+			cmp ecx, 0
+			jg L_SWAP_C
+		pop ecx
+		dec ecx
+		cmp ecx, 0
+		jg L_SWAP
+
+		ret
+swap_buf ENDP
+; == swap ===========================
 
 END
