@@ -435,6 +435,9 @@ select_grid SDWORD 0
 mPrevSelectBuffer BYTE 200000 DUP(?)
 mCurSelectBuffer BYTE 200000 DUP(?)
 swap_step DWORD 0
+game_mode DWORD 0
+cur_grid_x DWORD 8
+cur_grid_y DWORD 8
 
 
 .code
@@ -682,13 +685,25 @@ asm_handleMouseEvent PROC C USES ebx,
 		call swap_buf
 		mov swap_step, 1
 		call swap_buf
-		INVOKE set_grid_dimension, 8, 8
+		.if game_mode == 0
+			INVOKE set_grid_dimension, 8, 8
+		.elseif game_mode == 9
+			INVOKE set_grid_dimension, 4, 8
+		.else
+			INVOKE set_grid_dimension, 2, 4
+		.endif
 		mov select_grid, 0
 		call backup_image
 		jmp exit0
 	.endif
 
-	INVOKE set_grid_dimension, 8, 8
+	.if game_mode == 0
+		INVOKE set_grid_dimension, 8, 8
+	.elseif game_mode == 9
+		INVOKE set_grid_dimension, 4, 8
+	.else
+		INVOKE set_grid_dimension, 2, 4
+	.endif
 	mov select_grid, 1
 	call get_grid_range
 	call draw_selected
@@ -796,6 +811,7 @@ L1:
 		neg if_game_mode
 		.if if_game_mode == 1
 			call backup_image
+			mov game_mode, 0
 			INVOKE set_grid_dimension, 8, 8
 			call backup_image
 		.else
@@ -806,19 +822,40 @@ L1:
 	; grid setting
 	.if key == '8'
 		.if if_game_mode == 1
+			neg if_game_mode
+			call restore_image
+			mov cur_grid_x, 4
+			mov cur_grid_y, 2
+			mov game_mode, 8
 			INVOKE set_grid_dimension, 2, 4
+			neg if_game_mode
+			call backup_image
 		.endif
 	.endif
 
 	.if key == '9'
 		.if if_game_mode == 1
+			neg if_game_mode
+			call restore_image
+			mov cur_grid_x, 8
+			mov cur_grid_y, 4
+			mov game_mode, 9
 			INVOKE set_grid_dimension, 4, 8
+			neg if_game_mode
+			call backup_image
 		.endif
 	.endif
 
 	.if key == '0'
 		.if if_game_mode == 1
+			neg if_game_mode
+			call restore_image
+			mov cur_grid_x, 8
+			mov cur_grid_y, 8
+			mov game_mode, 0
 			INVOKE set_grid_dimension, 8, 8
+			neg if_game_mode
+			call backup_image
 		.endif
 	.endif
 
@@ -1510,7 +1547,7 @@ upside_down ENDP
 ; == upside_down ====================
 
 ; == set_grid_dimension =============
-; CHANGED grid dimension
+; TODO grid dimension
 set_grid_dimension PROC USES eax ebx ecx edx edi esi,
 	grid_x: DWORD,
 	grid_y: DWORD
@@ -1744,6 +1781,9 @@ draw_selected ENDP
 ; == get_grid_range =================
 ; TODO get grid range
 get_grid_range PROC USES eax ebx ecx edx edi esi
+	cmp cur_grid_x, 8
+	jne L_GET_GRID_X_4
+
 	mov edx, 0
 	mov eax, pos_x
 	mov ebx, 100
@@ -1756,10 +1796,63 @@ get_grid_range PROC USES eax ebx ecx edx edi esi
 		mov selected_grid_left, eax
 	.endif
 	add eax, 32
+	; .if eax == 256
+	; 	dec eax
+	; .endif
 	mov grid_right, eax
 	.if select_grid == 1
 		mov selected_grid_right, eax
 	.endif
+	jmp L_GET_GRID_Y
+
+	L_GET_GRID_X_4:
+	cmp cur_grid_x, 4
+	jne L_GET_GRID_X_2
+	mov edx, 0
+	mov eax, pos_x
+	mov ebx, 200
+	div ebx
+	; eax = column
+	mov ebx, 64
+	mul ebx ; eax = column*100
+	mov grid_left, eax
+	.if select_grid == 1
+		mov selected_grid_left, eax
+	.endif
+	add eax, 64
+	mov grid_right, eax
+	; .if eax == 256
+	; 	dec eax
+	; .endif
+	.if select_grid == 1
+		mov selected_grid_right, eax
+	.endif
+	jmp L_GET_GRID_Y
+
+	L_GET_GRID_X_2:
+	mov edx, 0
+	mov eax, pos_x
+	mov ebx, 400
+	div ebx
+	; eax = column
+	mov ebx, 128
+	mul ebx ; eax = column*100
+	mov grid_left, eax
+	.if select_grid == 1
+		mov selected_grid_left, eax
+	.endif
+	add eax, 128
+	mov grid_right, eax
+	; .if eax == 256
+	; 	dec eax
+	; .endif
+	.if select_grid == 1
+		mov selected_grid_right, eax
+	.endif
+
+	L_GET_GRID_Y:
+	cmp cur_grid_y, 8
+	jne L_GET_GRID_Y_4
 
 	mov edx, 0
 	mov eax, pos_y
@@ -1773,14 +1866,62 @@ get_grid_range PROC USES eax ebx ecx edx edi esi
 		mov selected_grid_top, eax
 	.endif
 	add eax, 32
-	.if eax == 256
-		dec eax
+	; .if eax == 256
+	; 	dec eax
+	; .endif
+	mov grid_bottom, eax
+	.if select_grid == 1
+		mov selected_grid_bottom, eax
 	.endif
+	jmp L_GET_GRID_QUIT
+
+	L_GET_GRID_Y_4:
+	cmp cur_grid_y, 4
+	jne L_GET_GRID_Y_2
+
+	mov edx, 0
+	mov eax, pos_y
+	mov ebx, 200
+	div ebx
+	; eax = row
+	mov ebx, 64
+	mul ebx ; eax = column*100
+	mov grid_top, eax
+	.if select_grid == 1
+		mov selected_grid_top, eax
+	.endif
+	add eax, 64
+	; .if eax == 256
+	; 	dec eax
+	; .endif
+	mov grid_bottom, eax
+	.if select_grid == 1
+		mov selected_grid_bottom, eax
+	.endif
+	jmp L_GET_GRID_QUIT
+
+	L_GET_GRID_Y_2:
+	mov edx, 0
+	mov eax, pos_y
+	mov ebx, 400
+	div ebx
+	; eax = row
+	mov ebx, 128
+	mul ebx ; eax = column*100
+	mov grid_top, eax
+	.if select_grid == 1
+		mov selected_grid_top, eax
+	.endif
+	add eax, 128
+	; .if eax == 256
+	; 	dec eax
+	; .endif
 	mov grid_bottom, eax
 	.if select_grid == 1
 		mov selected_grid_bottom, eax
 	.endif
 
+L_GET_GRID_QUIT:
 	ret
 get_grid_range ENDP
 ; == get_grid_range =================
